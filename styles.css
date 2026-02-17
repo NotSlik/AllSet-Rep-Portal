@@ -1,0 +1,14 @@
+:root { font-family: Arial, sans-serif; }
+body { margin: 0; background: #f6f6f6; }
+.wrap { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+.card { background: #fff; border: 1px solid #e6e6e6; border-radius: 14px; padding: 16px; }
+.sub { color: #666; margin-top: 6px; }
+label { display:block; margin-top: 10px; font-size: 13px; color:#333; }
+input { width: 260px; padding: 10px; border: 1px solid #ddd; border-radius: 10px; }
+button { padding: 10px 14px; border: 1px solid #ddd; border-radius: 10px; background:#fff; cursor:pointer; }
+.err { color: #b00020; margin-top: 10px; }
+.topbar { display:flex; gap:10px; align-items:center; margin-top: 12px; }
+.hidden { display:none !important; }
+#map { height: 78vh; margin-top: 12px; border-radius: 14px; overflow:hidden; border: 1px solid #e6e6e6; background:#fff; }
+.modal { position: fixed; inset:0; background: rgba(0,0,0,.35); display:flex; justify-content:center; align-items:center; }
+.modalBox { width: min(520px, 92vw); background:#fff; border-radius: 14px; padding: 16px; border:1px solid #eee; }
