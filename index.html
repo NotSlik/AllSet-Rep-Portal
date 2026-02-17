@@ -36,7 +36,6 @@
 
   <!-- App -->
   <div id="app" class="app app--locked">
-    <!-- Top bar -->
     <div class="topbar">
       <div class="left">
         <span class="pill">Rep: <strong id="repName">—</strong></span>
@@ -52,14 +51,11 @@
       </div>
     </div>
 
-    <!-- Map -->
     <div id="map"></div>
-
-    <!-- Small activity toast area -->
     <div id="toast" class="toast hidden"></div>
   </div>
 
-  <!-- Scripts -->
+  <!-- IMPORTANT: JS order matters -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script type="module" src="app.js"></script>
