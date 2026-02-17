@@ -11,6 +11,17 @@ const firebaseConfig = {
   appId: "1:59070052736:web:193a9edb6fd378fbd27365"
 };
 
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow authenticated (anonymous counts) to read/write everything (DEV ONLY)
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
