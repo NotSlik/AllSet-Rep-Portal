@@ -265,10 +265,10 @@ function initMap() {
     state.dots[id] = dot;
     saveState();
 
-    const marker = addDotMarker(dot);
-    openDotPopup(dot.id, marker);
-    addLog(`➕ ${getName()} placed a dot`);
-    renderCounts();
+    addDotMarker(dot); // place it quietly
+addLog(`➕ ${getName()} placed a dot`);
+toast("Dot placed (tap it to set status)");
+renderCounts();
   });
 
   // Leaflet Draw control (toggle on/off)
