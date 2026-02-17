@@ -1,25 +1,3 @@
-// Firebase imports
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-// Your Firebase config
-const firebaseConfig = {
-  apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
-  authDomain: "allsetrepportal.firebaseapp.com",
-  projectId: "allsetrepportal",
-  storageBucket: "allsetrepportal.appspot.com",
-  messagingSenderId: "59070052736",
-  appId: "1:59070052736:web:193a9edb6fd378fbd27365"
-};
-
-
-// Init Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// Login button
-document.getElementById("loginBtn").addEventListener("click", login);
-
 async function login() {
   const username = document.getElementById("username").value;
   const pin = document.getElementById("pin").value;
@@ -27,7 +5,7 @@ async function login() {
 
   err.innerText = "";
 
-  const ref = doc(db, "reps", username);
+  const ref = doc(db, "users", username);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
@@ -48,9 +26,9 @@ async function login() {
   ).join("");
 
   console.log("Computed:", hashHex);
-console.log("Stored:", data.PinHash);
+  console.log("Stored:", data.PinHash);
 
-if (hashHex === data.PinHash) {
+  if (hashHex === data.PinHash) {
     document.getElementById("loginCard").classList.add("hidden");
     document.getElementById("topbar").classList.remove("hidden");
     document.getElementById("map").classList.remove("hidden");
