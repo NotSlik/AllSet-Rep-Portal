@@ -15,3 +15,6 @@ button { margin-top: 12px; padding: 10px 12px; border: 0; border-radius: 8px; cu
 #map { height: 80vh; width: 100%; }
 
 #map { height: calc(100vh - 52px); width: 100%; }
+
+.hidden { display: none; }
+#map { height: 80vh; width: 100%; }
