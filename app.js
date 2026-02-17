@@ -118,3 +118,28 @@ async function signup() {
 
   err.innerText = "Account created. Now press Login.";
 }
+
+let map; // global
+
+function initMap() {
+  if (map) return; // don’t re-init
+
+  map = L.map("map").setView([41.6611, -91.5302], 13); // Iowa City
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(map);
+
+  // Fix blank map when shown after being hidden:
+  setTimeout(() => map.invalidateSize(), 200);
+}
+
+if (hashHex === data.pinHash) {
+  document.getElementById("loginCard").classList.add("hidden");
+  document.getElementById("topbar").classList.remove("hidden");
+  document.getElementById("map").classList.remove("hidden");
+  initMap();
+} else {
+  err.innerText = "Wrong PIN";
+}
+
