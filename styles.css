@@ -451,3 +451,24 @@ html, body { width: 100%; overflow-x: hidden; }
     pointer-events: auto;
   }
 }
+@media (max-width: 980px){
+
+  .layout{
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Flip order */
+  .mapWrap{
+    order: 1;
+  }
+
+  .panel.left{
+    order: 2;
+  }
+
+  .panel.right{
+    order: 3;
+  }
+
+}
