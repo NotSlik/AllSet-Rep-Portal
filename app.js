@@ -26,7 +26,7 @@ async function login() {
   ).join("");
 
   console.log("Computed:", hashHex);
-  console.log("Stored:", data.PinHash);
+  console.log("Stored:", data.pinHash);
 
   if (hashHex === data.PinHash) {
     document.getElementById("loginCard").classList.add("hidden");
