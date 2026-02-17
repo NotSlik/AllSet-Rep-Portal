@@ -11,6 +11,9 @@ const firebaseConfig = {
   appId: "1:59070052736:web:193a9edb6fd378fbd27365"
 };
 
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 // UI refs (attach listeners FIRST so app still responds even if auth fails)
 const errBox = document.getElementById("err");
 document.getElementById("loginBtn")?.addEventListener("click", login);
