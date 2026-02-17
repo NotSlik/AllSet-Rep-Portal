@@ -10,46 +10,108 @@
 </head>
 
 <body>
-  <div class="wrap">
-
-    <div class="card" id="loginCard">
-      <h1>AllSet Rep Portal</h1>
-      <p class="sub">Login (5-char user, 5-digit PIN)</p>
-
-      <label>Username</label>
-      <input id="username" maxlength="5" placeholder="abcde" autocomplete="username" />
-
-      <label>PIN</label>
-      <input id="pin" maxlength="5" inputmode="numeric" placeholder="12345" autocomplete="one-time-code" />
-
-      <div style="display:flex; gap:10px; margin-top:10px;">
-        <button id="loginBtn" type="button">Login</button>
-        <button id="signupBtn" type="button">Sign Up</button>
+  <!-- Nickname Gate -->
+  <div id="gate" class="gate">
+    <div class="gateCard">
+      <div class="brand">
+        <div class="logoDot"></div>
+        <div>
+          <div class="brandTitle">AllSet Rep Portal</div>
+          <div class="brandSub">Enter your nickname to start knocking.</div>
+        </div>
       </div>
 
-      <div class="err" id="err"></div>
+      <label for="nicknameInput">Nickname</label>
+      <input id="nicknameInput" placeholder="Laith" maxlength="24" />
+
+      <button id="enterBtn" type="button">Enter Map</button>
+      <div class="gateHint">Tip: this saves on your device (local-only).</div>
     </div>
-
-    <div class="topbar hidden" id="topbar">
-      <span id="repName" style="margin-right:12px;"></span>
-      <input id="search" placeholder='Search address (e.g. "214 Oak")' />
-      <button id="logoutBtn" type="button">Logout</button>
-    </div>
-
-    <div id="map" class="hidden"></div>
-
-    <div class="modal hidden" id="modal">
-      <div class="modalBox" id="modalBox"></div>
-    </div>
-
   </div>
 
-  <!-- Leaflet (ONLY ONCE) -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- App -->
+  <div id="app" class="app app--locked">
+    <div class="topbar">
+      <div class="topbarLeft">
+        <span class="pill">Rep: <strong id="repName">—</strong></span>
+        <button id="changeNameBtn" class="ghostBtn" type="button">Change</button>
+      </div>
 
-  <!-- Your app (ONLY ONCE) -->
+      <div class="topbarCenter">
+        <input id="search" placeholder='Search (example: "214 Oak") — local filter only for now' />
+      </div>
+
+      <div class="topbarRight">
+        <button id="resetLocalBtn" class="dangerBtn" type="button">Reset Local Data</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <aside class="panel left">
+        <div class="panelHeader">
+          <div class="panelTitle">Neighborhood Goals</div>
+          <div class="panelSub">Local progress on this device</div>
+        </div>
+
+        <div class="card">
+          <div class="row">
+            <div class="label">Assigned Neighborhood</div>
+            <div class="value" id="assignedNeighborhood">None</div>
+          </div>
+          <div class="row">
+            <div class="label">Houses Marked Knocked</div>
+            <div class="value" id="countKnocked">0</div>
+          </div>
+          <div class="row">
+            <div class="label">Not Home</div>
+            <div class="value" id="countNotHome">0</div>
+          </div>
+          <div class="row">
+            <div class="label">Skipped</div>
+            <div class="value" id="countSkipped">0</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="miniTitle">Quick Actions</div>
+          <button id="assignNorthBtn" class="actionBtn" type="button">Assign: Northside</button>
+          <button id="assignEastBtn" class="actionBtn" type="button">Assign: Eastside</button>
+          <button id="assignWestBtn" class="actionBtn" type="button">Assign: Westside</button>
+        </div>
+
+        <div class="card">
+          <div class="miniTitle">House Marking</div>
+          <div class="muted">Click a house dot on the map to mark status.</div>
+        </div>
+      </aside>
+
+      <main class="mapWrap">
+        <div id="map"></div>
+      </main>
+
+      <aside class="panel right">
+        <div class="panelHeader">
+          <div class="panelTitle">HUD</div>
+          <div class="panelSub">Pings & activity log (local)</div>
+        </div>
+
+        <div class="card">
+          <div class="miniTitle">Quick Ping</div>
+          <div class="pingRow">
+            <input id="pingText" placeholder="Type a note… (ex: Dog at 214 Oak)" />
+            <button id="sendPingBtn" class="actionBtn" type="button">Send</button>
+          </div>
+        </div>
+
+        <div class="card logCard">
+          <div class="miniTitle">Activity</div>
+          <div id="log" class="log"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
-
-console.log("APP.JS LOADED v7", new Date().toISOString());
