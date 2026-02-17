@@ -4,13 +4,14 @@ import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10
 
 // Your Firebase config
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
+  apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
   authDomain: "allsetrepportal.firebaseapp.com",
   projectId: "allsetrepportal",
   storageBucket: "allsetrepportal.appspot.com",
-  messagingSenderId: "590700052736",
-  appId: "1:590700052736:web:193a9edb6fd378fbd27365"
+  messagingSenderId: "59070052736",
+  appId: "1:59070052736:web:193a9edb6fd378fbd27365"
 };
+
 
 // Init Firebase
 const app = initializeApp(firebaseConfig);
