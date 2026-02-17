@@ -383,9 +383,9 @@ html, body { width: 100%; overflow-x: hidden; }
 
   /* Map as a neat card */
   .mapWrap{
-    height: 58vh;         /* smaller than before */
-    min-height: 300px;
-    border-radius: 26px;
+    height: 62vh;         /* smaller than before */
+    min-height: 330px;
+    border-radius: 30px;
     border: 1px solid rgba(255,255,255,.22);
     overflow: hidden;
   }
