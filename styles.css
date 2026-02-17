@@ -288,3 +288,9 @@ button{
   .topbarLeft{ min-width: auto; }
   .topbarRight{ min-width: auto; justify-content:flex-start; }
 }
+
+#map{
+  height: 100vh;
+  width: 100vw;
+}
+
