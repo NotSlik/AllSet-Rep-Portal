@@ -1,20 +1,11 @@
+// Firebase imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+// Your Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
+  apiKey: "YOUR_KEY_HERE",
   authDomain: "allsetrepportal.firebaseapp.com",
   projectId: "allsetrepportal",
   storageBucket: "allsetrepportal.appspot.com",
@@ -22,137 +13,108 @@ const firebaseConfig = {
   appId: "1:59070052736:web:193a9edb6fd378fbd27365"
 };
 
+// Init Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ---- helpers
-function handleToEmail(handle) {
-  // handle must be 3-20 chars: letters/numbers/._-
-  return `${handle.toLowerCase()}@allsetrepportal.local`;
-}
+// Anonymous auth (no email/password)
+const auth = getAuth(app);
+await signInAnonymously(auth);
 
-function showApp() {
-  document.getElementById("loginCard").classList.add("hidden");
-  document.getElementById("topbar").classList.remove("hidden");
-  document.getElementById("map").classList.remove("hidden");
-}
-
-function showLogin() {
-  document.getElementById("loginCard").classList.remove("hidden");
-  document.getElementById("topbar").classList.add("hidden");
-  document.getElementById("map").classList.add("hidden");
-}
-
-function setErr(msg) {
-  const err = document.getElementById("err");
-  err.textContent = msg || "";
-}
-
-// ---- UI wiring
+// UI
 document.getElementById("loginBtn").addEventListener("click", login);
-document.getElementById("signupBtn").addEventListener("click", signup);
-document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await signOut(auth);
-});
 
-// Enter key submits login
-["username", "pin", "nickname"].forEach(id => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") login();
-  });
-});
+// Optional: let reps create their own account (fast/easy)
+// If you add a button with id="signupBtn" in HTML, this will work:
+const signupBtn = document.getElementById("signupBtn");
+if (signupBtn) signupBtn.addEventListener("click", signup);
 
-// ---- Auth state
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    showLogin();
-    return;
-  }
+let map; // Leaflet map instance
 
-  // optional: load rep profile
-  const repRef = doc(db, "reps", user.uid);
-  const snap = await getDoc(repRef);
-  if (snap.exists()) {
-    const rep = snap.data();
-    document.getElementById("repName").textContent = rep.nickname || "Rep";
-  } else {
-    document.getElementById("repName").textContent = "Rep";
-  }
-
-  showApp();
-});
-
-// ---- actions
-async function signup() {
-  try {
-    setErr("");
-
-    const handle = document.getElementById("username").value.trim();
-    const pin = document.getElementById("pin").value.trim();
-    const nickname = document.getElementById("nickname").value.trim();
-
-    if (!/^[a-zA-Z0-9._-]{3,20}$/.test(handle)) {
-      setErr("Handle must be 3-20 chars (letters/numbers/._-).");
-      return;
-    }
-    if (!/^[0-9]{5,12}$/.test(pin)) {
-      setErr("PIN must be 5-12 digits.");
-      return;
-    }
-    if (nickname.length < 2) {
-      setErr("Nickname is required (ex: 'Laith').");
-      return;
-    }
-
-    const email = handleToEmail(handle);
-
-    const cred = await createUserWithEmailAndPassword(auth, email, pin);
-
-    // create profile doc tied to UID (secure)
-    await setDoc(doc(db, "reps", cred.user.uid), {
-      handle: handle.toLowerCase(),
-      nickname,
-      createdAt: Date.now()
-    });
-
-    // onAuthStateChanged will show the app
-  } catch (e) {
-    // friendly messages
-    if (e.code === "auth/email-already-in-use") {
-      setErr("That handle is already taken. Try another.");
-    } else if (e.code === "auth/weak-password") {
-      setErr("PIN too weak. Use 6-12 digits.");
-    } else {
-      console.error(e);
-      setErr(e.message);
-    }
-  }
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function login() {
-  try {
-    setErr("");
+  const username = document.getElementById("username").value.trim();
+  const pin = document.getElementById("pin").value.trim();
+  const err = document.getElementById("err");
 
-    const handle = document.getElementById("username").value.trim();
-    const pin = document.getElementById("pin").value.trim();
+  err.innerText = "";
 
-    if (!handle || !pin) {
-      setErr("Enter handle + PIN.");
-      return;
-    }
-
-    const email = handleToEmail(handle);
-    await signInWithEmailAndPassword(auth, email, pin);
-    // onAuthStateChanged will show the app
-  } catch (e) {
-    if (e.code === "auth/invalid-credential") {
-      setErr("Wrong handle or PIN.");
-    } else {
-      console.error(e);
-      setErr(e.message);
-    }
+  if (!username || !pin) {
+    err.innerText = "Enter username + PIN";
+    return;
   }
+
+  // IMPORTANT: your Firestore is reps/{username}
+  const ref = doc(db, "reps", username);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    err.innerText = "User not found";
+    return;
+  }
+
+  const data = snap.data();
+  const computed = await sha256Hex(pin);
+
+  // IMPORTANT: field is pinHash (lowercase p)
+  const stored = data.pinHash;
+
+  if (!stored) {
+    err.innerText = "Account missing pinHash field";
+    return;
+  }
+
+  if (computed === stored) {
+    document.getElementById("loginCard").classList.add("hidden");
+    document.getElementById("topbar").classList.remove("hidden");
+    document.getElementById("map").classList.remove("hidden");
+
+    initMap(); // <-- THIS is why you weren’t seeing the map before
+  } else {
+    err.innerText = "Wrong PIN";
+  }
+}
+
+function initMap() {
+  if (map) return; // don’t re-create
+
+  // Leaflet requires the div to be visible + have height in CSS
+  map = L.map("map").setView([41.6611, -91.5302], 13); // Iowa City default
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(map);
+
+  L.marker([41.6611, -91.5302]).addTo(map).bindPopup("AllSet Rep Portal").openPopup();
+}
+
+// OPTIONAL: quick rep self-signup (no email)
+// Needs a signup button and (ideally) a displayName input too.
+async function signup() {
+  const username = document.getElementById("username").value.trim();
+  const pin = document.getElementById("pin").value.trim();
+  const err = document.getElementById("err");
+
+  err.innerText = "";
+
+  if (!username || !pin) {
+    err.innerText = "Enter username + PIN";
+    return;
+  }
+
+  const pinHash = await sha256Hex(pin);
+
+  // Create reps/{username}
+  await setDoc(doc(db, "reps", username), {
+    pinHash,
+    displayName: username, // later swap this for a real-name field
+    createdAt: Date.now()
+  });
+
+  err.innerText = "Account created. Now press Login.";
 }
