@@ -353,3 +353,101 @@ button{
     touch-action: pan-x pan-y;
   }
 }
+/* --- GLOBAL: stop right-stretch / sideways scroll --- */
+* { box-sizing: border-box; }
+html, body { width: 100%; overflow-x: hidden; }
+
+/* If you have a main container like .wrap or .layout, lock it */
+.wrap, .layout { width: 100%; max-width: 100%; overflow-x: hidden; }
+
+/* --- MOBILE LAYOUT: map card + controls directly under it --- */
+@media (max-width: 980px) {
+
+  /* Tighten overall spacing */
+  .layout{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    height: auto; /* stops weird stretching */
+  }
+
+  /* Make map + panels share same width */
+  .mapWrap,
+  .panel.left,
+  .panel.right{
+    width: 100%;
+    max-width: 420px;     /* <- adjust: 380–460 depending on your taste */
+    margin: 0 auto;
+  }
+
+  /* Map as a neat card */
+  .mapWrap{
+    height: 40vh;         /* smaller than before */
+    min-height: 240px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.22);
+    overflow: hidden;
+  }
+
+  /* Controls should NOT be a bottom fixed drawer on phone */
+  .panel.left{
+    position: static !important;
+    display: flex !important;
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+    max-height: none;
+  }
+
+  /* If you had drawer styles, this prevents them from forcing huge height */
+  .panel.left.panel--open{ display:flex; }
+
+  /* Reduce “big” feel inside controls */
+  .panel{
+    background: rgba(0,0,0,.82);
+    border: 1px solid rgba(255,255,255,.18);
+    box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  }
+
+  .panelHeader{
+    padding: 10px 12px;
+  }
+
+  .panelBody{
+    padding: 10px 12px;
+  }
+
+  /* Buttons + cards smaller */
+  button{
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .card{
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  /* Optional: keep RIGHT panel as a drawer (online/actions), not always shown */
+  .panel.right{
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    max-width: 420px;
+    margin: 0 auto;
+    display: none;
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+    transition: opacity .15s ease, transform .15s ease;
+    z-index: 1200;
+  }
+  .panel.right.panel--open{
+    display: flex;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+}
