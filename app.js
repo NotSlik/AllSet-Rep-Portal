@@ -21,15 +21,16 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 await signInAnonymously(auth);
 
-// UI
-document.getElementById("loginBtn").addEventListener("click", login);
-
-// Optional: let reps create their own account (fast/easy)
-// If you add a button with id="signupBtn" in HTML, this will work:
+// UI refs
+const loginBtn = document.getElementById("loginBtn");
 const signupBtn = document.getElementById("signupBtn");
-if (signupBtn) signupBtn.addEventListener("click", signup);
+const logoutBtn = document.getElementById("logoutBtn");
 
-let map; // Leaflet map instance
+loginBtn?.addEventListener("click", login);
+signupBtn?.addEventListener("click", signup);
+logoutBtn?.addEventListener("click", logout);
+
+let map; // <-- ONLY declare map ONCE
 
 async function sha256Hex(str) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
@@ -40,7 +41,6 @@ async function login() {
   const username = document.getElementById("username").value.trim();
   const pin = document.getElementById("pin").value.trim();
   const err = document.getElementById("err");
-
   err.innerText = "";
 
   if (!username || !pin) {
@@ -48,7 +48,6 @@ async function login() {
     return;
   }
 
-  // IMPORTANT: your Firestore is reps/{username}
   const ref = doc(db, "reps", username);
   const snap = await getDoc(ref);
 
@@ -59,47 +58,50 @@ async function login() {
 
   const data = snap.data();
   const computed = await sha256Hex(pin);
-
-  // IMPORTANT: field is pinHash (lowercase p)
-  const stored = data.pinHash;
+  const stored = data.pinHash; // MUST be pinHash
 
   if (!stored) {
     err.innerText = "Account missing pinHash field";
     return;
   }
 
-  if (computed === stored) {
-    document.getElementById("loginCard").classList.add("hidden");
-    document.getElementById("topbar").classList.remove("hidden");
-    document.getElementById("map").classList.remove("hidden");
-
-    initMap(); // <-- THIS is why you weren’t seeing the map before
-  } else {
+  if (computed !== stored) {
     err.innerText = "Wrong PIN";
+    return;
   }
+
+  // Success UI
+  document.getElementById("loginCard").classList.add("hidden");
+  document.getElementById("topbar").classList.remove("hidden");
+  document.getElementById("map").classList.remove("hidden");
+
+  // Optional name display
+  const repName = document.getElementById("repName");
+  repName.textContent = data.nickname || data.displayName || username;
+
+  initMap();
 }
 
 function initMap() {
-  if (map) return; // don’t re-create
+  if (map) return;
 
-  // Leaflet requires the div to be visible + have height in CSS
-  map = L.map("map").setView([41.6611, -91.5302], 13); // Iowa City default
+  map = L.map("map").setView([41.6611, -91.5302], 13);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap"
   }).addTo(map);
 
-  L.marker([41.6611, -91.5302]).addTo(map).bindPopup("AllSet Rep Portal").openPopup();
+  // Fix blank map if div was hidden before:
+  setTimeout(() => map.invalidateSize(), 200);
 }
 
 // OPTIONAL: quick rep self-signup (no email)
-// Needs a signup button and (ideally) a displayName input too.
+// Creates reps/{username} with pinHash
 async function signup() {
   const username = document.getElementById("username").value.trim();
   const pin = document.getElementById("pin").value.trim();
   const err = document.getElementById("err");
-
   err.innerText = "";
 
   if (!username || !pin) {
@@ -109,37 +111,21 @@ async function signup() {
 
   const pinHash = await sha256Hex(pin);
 
-  // Create reps/{username}
   await setDoc(doc(db, "reps", username), {
     pinHash,
-    displayName: username, // later swap this for a real-name field
+    nickname: username,     // you can replace later with a real-name input
     createdAt: Date.now()
-  });
+  }, { merge: true });
 
   err.innerText = "Account created. Now press Login.";
 }
 
-let map; // global
+function logout() {
+  // Simple UI logout (anonymous auth stays signed-in, which is fine)
+  document.getElementById("loginCard").classList.remove("hidden");
+  document.getElementById("topbar").classList.add("hidden");
+  document.getElementById("map").classList.add("hidden");
 
-function initMap() {
-  if (map) return; // don’t re-init
-
-  map = L.map("map").setView([41.6611, -91.5302], 13); // Iowa City
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap"
-  }).addTo(map);
-
-  // Fix blank map when shown after being hidden:
-  setTimeout(() => map.invalidateSize(), 200);
+  // optional: clear inputs
+  document.getElementById("pin").value = "";
 }
-
-if (hashHex === data.pinHash) {
-  document.getElementById("loginCard").classList.add("hidden");
-  document.getElementById("topbar").classList.remove("hidden");
-  document.getElementById("map").classList.remove("hidden");
-  initMap();
-} else {
-  err.innerText = "Wrong PIN";
-}
-
