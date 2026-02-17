@@ -26,6 +26,8 @@ const pingText = document.getElementById("pingText");
 const sendPingBtn = document.getElementById("sendPingBtn");
 const logEl = document.getElementById("log");
 
+console.log({ gate, appRoot, nicknameInput, enterBtn });
+
 let map;
 
 // Basic local state
