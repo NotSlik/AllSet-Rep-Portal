@@ -1,3 +1,40 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCtT7UgH4SnpSG96-oXf3_n23bowrhF5cM",
+  authDomain: "allsetrepportal.firebaseapp.com",
+  projectId: "allsetrepportal",
+  storageBucket: "allsetrepportal.appspot.com",
+  messagingSenderId: "59070052736",
+  appId: "1:59070052736:web:193a9edb6fd378fbd27365"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const err = document.getElementById("err");
+const loginBtn = document.getElementById("loginBtn");
+const signupBtn = document.getElementById("signupBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+
+loginBtn?.addEventListener("click", login);
+signupBtn?.addEventListener("click", signup);
+logoutBtn?.addEventListener("click", logout);
+
+// Don’t let auth failure kill the whole app
+(async () => {
+  try {
+    const auth = getAuth(app);
+    await signInAnonymously(auth);
+    console.log("✅ Anonymous auth ok");
+  } catch (e) {
+    console.error("❌ Anonymous auth failed:", e);
+    if (err) err.innerText = "Firebase Auth error: enable Anonymous sign-in + add domain in Firebase console.";
+  }
+})();
+
 // Firebase imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
