@@ -1,7 +1,7 @@
 console.log("✅ LOCAL-ONLY APP.JS LOADED");
 
 const LS_NAME  = "allset_rep_name";
-const LS_STATE = "allset_rep_state_v2";
+const LS_STATE = "allset_rep_state_v3";
 
 // Elements
 const gate = document.getElementById("gate");
@@ -68,7 +68,7 @@ function boot() {
     const name = nicknameInput.value.trim();
     if (!name) return;
     setName(name);
-    unlockApp(true); // true = start GPS after user gesture
+    unlockApp(true);
   });
 
   nicknameInput.addEventListener("keydown", (e) => {
@@ -84,7 +84,7 @@ function boot() {
     location.reload();
   });
 
-  // Panels (mobile)
+  // Panels (mobile toggles)
   toggleLeftBtn.addEventListener("click", () => {
     rightPanel.classList.remove("panel--open");
     leftPanel.classList.toggle("panel--open");
@@ -99,7 +99,7 @@ function boot() {
   assignEastBtn.addEventListener("click", () => assignNeighborhood("Eastside"));
   assignWestBtn.addEventListener("click", () => assignNeighborhood("Westside"));
 
-  // Notes + activity
+  // Notes
   sendPingBtn.addEventListener("click", () => {
     const msg = pingText.value.trim();
     if (!msg) return;
@@ -118,7 +118,7 @@ function boot() {
   addDotBtn.addEventListener("click", () => {
     addDotMode = !addDotMode;
     addDotBtn.textContent = addDotMode ? "✓ Add Dot ON" : "+ Add Dot";
-    addLog(addDotMode ? "➕ Add Dot mode ON: click map to place a dot" : "➕ Add Dot mode OFF");
+    addLog(addDotMode ? "➕ Add Dot ON: tap map to place dot" : "➕ Add Dot OFF");
   });
 
   // GPS
@@ -127,7 +127,6 @@ function boot() {
     else stopGps();
   });
 
-  // Init map and markers
   initMap();
   loadAllHouses();
   renderStats();
@@ -145,10 +144,8 @@ function unlockApp(startGpsAfterGesture) {
   appRoot.classList.remove("app--locked");
   addLog(`✅ ${getName()} entered the map`);
 
-  // Leaflet needs a resize when un-hiding
-  setTimeout(() => map?.invalidateSize?.(), 200);
+  setTimeout(() => map?.invalidateSize?.(), 250);
 
-  // Start GPS after user gesture (best for mobile permissions)
   if (startGpsAfterGesture && !gpsOn) startGps();
 }
 
@@ -229,7 +226,7 @@ function initMap() {
 
   map = L.map("map", { zoomControl: true }).setView([41.6611, -91.5302], 13);
 
-  // Clean basemap: grey-ish roads/buildings, green parks, blue water
+  // Grey-ish base with blue water/green parks
   L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap &copy; CARTO"
@@ -239,7 +236,7 @@ function initMap() {
   map.on("click", (e) => {
     if (!addDotMode) return;
 
-    const label = prompt("Label for this dot? (ex: 214 Oak)")?.trim();
+    const label = prompt("Address / label? (ex: 214 Oak)")?.trim();
     if (!label) return;
 
     const id = `custom-${Date.now()}`;
@@ -254,7 +251,7 @@ function initMap() {
 }
 
 function loadAllHouses() {
-  // Demo houses (replace later with real dataset)
+  // Demo (replace later with real dataset)
   const demo = [
     { id: "214-oak",   lat: 41.6650, lng: -91.5305, label: "214 Oak" },
     { id: "318-pine",  lat: 41.6598, lng: -91.5258, label: "318 Pine" },
@@ -263,13 +260,10 @@ function loadAllHouses() {
   ];
 
   demo.forEach(addHouseMarker);
-
-  // Custom houses saved locally
   Object.values(state.customHouses || {}).forEach(addHouseMarker);
 }
 
 function addHouseMarker(h) {
-  // Don’t duplicate
   if (markerById.has(h.id)) return;
 
   const status = state.houses[h.id] || "none";
@@ -288,33 +282,38 @@ function openHousePopup(h) {
   const current = state.houses[h.id] || "none";
 
   const html = `
-    <div style="min-width:190px">
+    <div style="min-width:200px">
       <div style="font-weight:900; margin-bottom:6px">${escapeHtml(h.label)}</div>
       <div style="font-size:12px; opacity:.75; margin-bottom:10px">
         Status: <b>${statusLabel(current)}</b>
       </div>
 
       <div style="display:grid; gap:7px">
-        <button data-s="yes" class="popBtn">✅ Yes / Closed</button>
-        <button data-s="no" class="popBtn">❌ No</button>
-        <button data-s="nothome" class="popBtn">🏃 Not Home</button>
-        <button data-s="callback" class="popBtn">📞 Callback</button>
-        <button data-s="knocked" class="popBtn">🟨 Knocked</button>
-        <button data-s="skip" class="popBtn">⏭️ Skip</button>
-        <button data-s="none" class="popBtn popBtn--ghost">↩ Reset</button>
-        <button data-s="delete" class="popBtn popBtn--danger">🗑 Remove Dot</button>
+        ${popupBtn("yes", "✅ Yes / Closed")}
+        ${popupBtn("no", "❌ No")}
+        ${popupBtn("nothome", "🏃 Not Home")}
+        ${popupBtn("callback", "📞 Callback")}
+        ${popupBtn("knocked", "🟨 Knocked")}
+        ${popupBtn("skip", "⏭️ Skip")}
+        ${popupBtn("none", "↩ Reset", "ghost")}
+        ${popupBtn("delete", "🗑 Remove Dot", "danger")}
       </div>
     </div>
   `;
 
-  marker.bindPopup(html).openPopup();
+  const popup = L.popup({ closeButton: true, autoPan: true }).setContent(html);
+  marker.bindPopup(popup).openPopup();
 
-  marker.once("popupopen", (e) => {
-    const el = e.popup.getElement();
-    if (!el) return;
+  // IMPORTANT: bind after popup is in DOM
+  setTimeout(() => {
+    const root = document.querySelector(".leaflet-popup-content");
+    if (!root) return;
 
-    el.querySelectorAll("button[data-s]").forEach(btn => {
-      btn.addEventListener("click", () => {
+    root.querySelectorAll("button[data-s]").forEach(btn => {
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+
         const s = btn.getAttribute("data-s");
 
         if (s === "delete") {
@@ -327,7 +326,15 @@ function openHousePopup(h) {
         map.closePopup();
       });
     });
-  });
+  }, 0);
+}
+
+function popupBtn(status, text, kind) {
+  const cls =
+    kind === "danger" ? "popBtn popBtn--danger" :
+    kind === "ghost"  ? "popBtn popBtn--ghost" :
+    "popBtn";
+  return `<button class="${cls}" data-s="${status}" type="button">${text}</button>`;
 }
 
 function setHouseStatus(id, status) {
@@ -340,15 +347,12 @@ function setHouseStatus(id, status) {
   const marker = markerById.get(id);
   if (marker) marker.setStyle(houseStyle(state.houses[id] || "none"));
 
-  // Find label for log
   const label = state.customHouses[id]?.label || id;
-  addLog(`🏠 ${getName()} set ${label}: ${statusLabel(status)}`);
+  addLog(`🏠 ${getName()} → ${label}: ${statusLabel(status)}`);
 }
 
 function removeHouse(id) {
   delete state.houses[id];
-
-  // If custom, remove from saved custom list too
   if (state.customHouses[id]) delete state.customHouses[id];
 
   saveState();
@@ -372,31 +376,30 @@ function statusLabel(s) {
 }
 
 function houseStyle(status) {
-  // Keep dot fill grey (as requested). Change the ring color to show status.
+  // FULL FILL COLOR (your request)
   const base = {
     radius: 7,
-    weight: 3,
+    weight: 2,
     opacity: 1,
-    fillOpacity: 0.92,
-    fillColor: "rgba(175,175,175,.95)"
+    fillOpacity: 0.95
   };
 
-  if (status === "yes") return { ...base, color: "rgba(34,197,94,.95)" };
-  if (status === "no") return { ...base, color: "rgba(239,68,68,.95)" };
-  if (status === "nothome") return { ...base, color: "rgba(56,189,248,.95)" };
-  if (status === "callback") return { ...base, color: "rgba(167,139,250,.95)" };
-  if (status === "knocked") return { ...base, color: "rgba(245,158,11,.95)" };
-  if (status === "skip") return { ...base, color: "rgba(255,255,255,.35)" };
+  if (status === "yes")     return { ...base, color: "rgba(34,197,94,.95)",  fillColor: "rgba(34,197,94,.85)" };
+  if (status === "no")      return { ...base, color: "rgba(239,68,68,.95)",  fillColor: "rgba(239,68,68,.85)" };
+  if (status === "nothome") return { ...base, color: "rgba(56,189,248,.95)", fillColor: "rgba(56,189,248,.80)" };
+  if (status === "callback")return { ...base, color: "rgba(167,139,250,.95)",fillColor: "rgba(167,139,250,.80)" };
+  if (status === "knocked") return { ...base, color: "rgba(245,158,11,.95)", fillColor: "rgba(245,158,11,.85)" };
+  if (status === "skip")    return { ...base, color: "rgba(255,255,255,.35)",fillColor: "rgba(255,255,255,.18)" };
 
-  // none
-  return { ...base, color: "rgba(255,255,255,.55)", fillOpacity: 0.65 };
+  // none = grey
+  return { ...base, color: "rgba(255,255,255,.40)", fillColor: "rgba(160,160,160,.65)", fillOpacity: 0.75 };
 }
 
 /* ===================== GPS ===================== */
 
 function startGps() {
   if (!navigator.geolocation) {
-    addLog("❌ GPS not supported on this device");
+    addLog("❌ GPS not supported");
     return;
   }
   if (gpsOn) return;
@@ -417,7 +420,7 @@ function startGps() {
           color: "rgba(56,189,248,.95)",
           fillColor: "rgba(56,189,248,.55)",
           fillOpacity: 1
-        }).addTo(map).bindTooltip(`${getName()} (you)`, { permanent: false });
+        }).addTo(map).bindTooltip(`${getName()} (you)`);
 
         gpsCircle = L.circle(latlng, {
           radius: Math.max(accuracy, 15),
@@ -450,7 +453,6 @@ function stopGps() {
     navigator.geolocation.clearWatch(gpsWatchId);
     gpsWatchId = null;
   }
-
   if (gpsMarker) { map.removeLayer(gpsMarker); gpsMarker = null; }
   if (gpsCircle) { map.removeLayer(gpsCircle); gpsCircle = null; }
 
@@ -458,7 +460,6 @@ function stopGps() {
 }
 
 /* ===================== Utils ===================== */
-
 function escapeHtml(str) {
   return String(str)
     .replaceAll("&", "&amp;")
