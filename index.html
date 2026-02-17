@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AllSet Rep Portal</title>
+
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="loginCard">
+      <h1>AllSet Rep Portal</h1>
+      <p class="sub">Login (5-char user, 5-digit PIN)</p>
+
+      <label>Username</label>
+      <input id="username" maxlength="5" placeholder="laala" />
+
+      <label>PIN</label>
+      <input id="pin" maxlength="5" inputmode="numeric" placeholder="52627" />
+
+      <button id="loginBtn">Login</button>
+      <div class="err" id="err"></div>
+    </div>
+
+    <div class="topbar hidden" id="topbar">
+      <input id="search" placeholder='Search address (e.g. "214 Oak")' />
+      <button id="logoutBtn">Logout</button>
+    </div>
+
+    <div id="map" class="hidden"></div>
+
+    <div class="modal hidden" id="modal">
+      <div class="modalBox" id="modalBox"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Firebase (modular) -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
