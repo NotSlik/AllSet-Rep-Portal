@@ -27,7 +27,7 @@ async function login() {
 
   err.innerText = "";
 
-  const ref = doc(db, "reps", username);
+  const ref = doc(db, "users", username);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
