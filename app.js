@@ -5,7 +5,7 @@ import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/1
 
 // Your Firebase config
 const firebaseConfig = {
-  apiKey: "YOUR_KEY_HERE",
+  apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
   authDomain: "allsetrepportal.firebaseapp.com",
   projectId: "allsetrepportal",
   storageBucket: "allsetrepportal.appspot.com",
