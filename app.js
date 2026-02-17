@@ -1,4 +1,5 @@
 // ===== Local-only Rep Portal (no auth, no firebase) =====
+console.log("✅ NEW LOCAL-ONLY APP.JS LOADED");
 
 const LS_NAME = "allset_rep_name";
 const LS_STATE = "allset_rep_state_v1";
