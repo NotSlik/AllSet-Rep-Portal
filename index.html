@@ -25,7 +25,7 @@
       <input id="nicknameInput" placeholder="Laith" maxlength="24" />
 
       <button id="enterBtn" type="button">Enter Map</button>
-      <div class="gateHint">Tip: this saves on your device (local-only).</div>
+      <div class="gateHint">Local-only right now (saves on this device).</div>
     </div>
   </div>
 
@@ -35,19 +35,26 @@
       <div class="topbarLeft">
         <span class="pill">Rep: <strong id="repName">—</strong></span>
         <button id="changeNameBtn" class="ghostBtn" type="button">Change</button>
+
+        <!-- Mobile toggles -->
+        <button id="toggleLeftBtn" class="chipBtn" type="button">Goals</button>
+        <button id="toggleRightBtn" class="chipBtn" type="button">HUD</button>
       </div>
 
       <div class="topbarCenter">
-        <input id="search" placeholder='Search (example: "214 Oak") — local filter only for now' />
+        <input id="search" placeholder='Search (placeholder for later: "214 Oak")' />
       </div>
 
       <div class="topbarRight">
-        <button id="resetLocalBtn" class="dangerBtn" type="button">Reset Local Data</button>
+        <button id="gpsBtn" class="ghostBtn" type="button">GPS: Off</button>
+        <button id="addDotBtn" class="actionBtn" type="button">+ Add Dot</button>
+        <button id="resetLocalBtn" class="dangerBtn" type="button">Reset</button>
       </div>
     </div>
 
     <div class="layout">
-      <aside class="panel left">
+      <!-- LEFT PANEL -->
+      <aside class="panel left" id="leftPanel">
         <div class="panelHeader">
           <div class="panelTitle">Neighborhood Goals</div>
           <div class="panelSub">Local progress on this device</div>
@@ -59,52 +66,88 @@
             <div class="value" id="assignedNeighborhood">None</div>
           </div>
           <div class="row">
-            <div class="label">Houses Marked Knocked</div>
-            <div class="value" id="countKnocked">0</div>
+            <div class="label">✅ Yes / Closed</div>
+            <div class="value" id="countYes">0</div>
           </div>
           <div class="row">
-            <div class="label">Not Home</div>
+            <div class="label">❌ No</div>
+            <div class="value" id="countNo">0</div>
+          </div>
+          <div class="row">
+            <div class="label">🏃 Not Home</div>
             <div class="value" id="countNotHome">0</div>
           </div>
           <div class="row">
-            <div class="label">Skipped</div>
-            <div class="value" id="countSkipped">0</div>
+            <div class="label">📞 Callback</div>
+            <div class="value" id="countCallback">0</div>
+          </div>
+          <div class="row">
+            <div class="label">🟨 Knocked (no answer yet)</div>
+            <div class="value" id="countKnocked">0</div>
+          </div>
+          <div class="row">
+            <div class="label">⏭️ Skipped</div>
+            <div class="value" id="countSkip">0</div>
           </div>
         </div>
 
         <div class="card">
-          <div class="miniTitle">Quick Actions</div>
+          <div class="miniTitle">Quick Assign</div>
           <button id="assignNorthBtn" class="actionBtn" type="button">Assign: Northside</button>
           <button id="assignEastBtn" class="actionBtn" type="button">Assign: Eastside</button>
           <button id="assignWestBtn" class="actionBtn" type="button">Assign: Westside</button>
         </div>
 
         <div class="card">
-          <div class="miniTitle">House Marking</div>
-          <div class="muted">Click a house dot on the map to mark status.</div>
+          <div class="miniTitle">Legend</div>
+          <div class="legend">
+            <div class="legItem"><span class="sw sw-yes"></span> Yes / Closed</div>
+            <div class="legItem"><span class="sw sw-no"></span> No</div>
+            <div class="legItem"><span class="sw sw-nh"></span> Not Home</div>
+            <div class="legItem"><span class="sw sw-cb"></span> Callback</div>
+            <div class="legItem"><span class="sw sw-kn"></span> Knocked</div>
+            <div class="legItem"><span class="sw sw-sk"></span> Skip</div>
+            <div class="legItem"><span class="sw sw-none"></span> Unmarked</div>
+          </div>
+          <div class="muted" style="margin-top:10px">
+            Tip: Click a dot → choose a status from the popup.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="miniTitle">Add Dot Mode</div>
+          <div class="muted">Turn on “+ Add Dot” then click the map to place a new house dot.</div>
         </div>
       </aside>
 
+      <!-- MAP -->
       <main class="mapWrap">
         <div id="map"></div>
       </main>
 
-      <aside class="panel right">
+      <!-- RIGHT PANEL -->
+      <aside class="panel right" id="rightPanel">
         <div class="panelHeader">
           <div class="panelTitle">HUD</div>
-          <div class="panelSub">Pings & activity log (local)</div>
+          <div class="panelSub">Notes + activity (local-only)</div>
         </div>
 
         <div class="card">
-          <div class="miniTitle">Quick Ping</div>
+          <div class="miniTitle">Add Note</div>
+          <div class="muted" style="margin-bottom:10px">
+            This saves to your device only (not sent to other reps yet).
+          </div>
           <div class="pingRow">
-            <input id="pingText" placeholder="Type a note… (ex: Dog at 214 Oak)" />
-            <button id="sendPingBtn" class="actionBtn" type="button">Send</button>
+            <input id="pingText" placeholder="Ex: Dog at 214 Oak" />
+            <button id="sendPingBtn" class="actionBtn" type="button">Add</button>
           </div>
         </div>
 
-        <div class="card logCard">
+        <div class="card">
           <div class="miniTitle">Activity</div>
+          <div class="hudBtns">
+            <button id="clearLogBtn" class="dangerBtn" type="button">Clear Activity</button>
+          </div>
           <div id="log" class="log"></div>
         </div>
       </aside>
