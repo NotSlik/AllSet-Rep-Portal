@@ -47,7 +47,7 @@ async function login() {
     b.toString(16).padStart(2, "0")
   ).join("");
 
-  if (hashHex === data.HashPin) {
+  if (hashHex === data.PinHash) {
     document.getElementById("loginCard").classList.add("hidden");
     document.getElementById("topbar").classList.remove("hidden");
     document.getElementById("map").classList.remove("hidden");
