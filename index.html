@@ -140,3 +140,35 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
+
+<!-- Load Leaflet & Draw first -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+<!-- Firebase App & Firestore SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { 
+    getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, query, limit, orderBy 
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
+    authDomain: "allsetrepportal.firebaseapp.com",
+    projectId: "allsetrepportal",
+    storageBucket: "allsetrepportal.firebasestorage.app",
+    messagingSenderId: "590070052736",
+    appId: "1:590070052736:web:193a9edb6fd378fbd27365",
+    measurementId: "G-SY45913J3Z"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Attach to window so app.js can access these methods
+  window.db = db;
+  window.fs = { collection, onSnapshot, doc, setDoc, deleteDoc, query, limit, orderBy };
+</script>
+
+<!-- Your main logic -->
+<script type="module" src="app.js"></script>
