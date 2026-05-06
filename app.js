@@ -1,3 +1,4 @@
+const { db, fs } = window;
 console.log("✅ LOCAL-ONLY APP.JS LOADED");
 
 const LS_NAME  = "allset_rep_name";
@@ -61,10 +62,7 @@ let lastFoundMarker = null;
 // State
 const state = loadState();
 
-boot();
-
 function boot() {
-  // Gate init
   const savedName = localStorage.getItem(LS_NAME);
   if (savedName) {
     setName(savedName);
@@ -72,6 +70,68 @@ function boot() {
   } else {
     lockApp(true);
   }
+
+  // UI Listeners
+  enterBtn.addEventListener("click", () => {
+    const name = nicknameInput.value.trim();
+    if (!name) return;
+    setName(name);
+    unlockApp();
+  });
+
+  // Start Real-time Listeners
+  listenForDots();
+  listenForNeighborhoods();
+  
+  // ... (keep your existing button event listeners for GPS, Draw, etc.)
+  initMap();
+}
+
+// NEW: Real-time listener for Dots
+function listenForDots() {
+  fs.onSnapshot(fs.collection(db, "dots"), (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      const dot = change.doc.data();
+      if (change.type === "added" || change.type === "modified") {
+        state.dots[dot.id] = dot;
+        const marker = markerById.get(dot.id);
+        if (marker) {
+          marker.setLatLng([dot.lat, dot.lng]);
+          marker.setStyle(dotStyle(dot.status));
+          if (dot.label) marker.setTooltipContent(dot.label);
+        } else {
+          addDotMarker(dot);
+        }
+      }
+      if (change.type === "removed") {
+        const marker = markerById.get(dot.id);
+        if (marker) dotLayer.removeLayer(marker);
+        delete state.dots[dot.id];
+      }
+    });
+    renderCounts();
+  });
+}
+
+// NEW: Real-time listener for Neighborhoods
+function listenForNeighborhoods() {
+  fs.onSnapshot(fs.collection(db, "neighborhoods"), (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      const nb = change.doc.data();
+      if (change.type === "added") {
+        state.neighborhoods[nb.id] = nb;
+        renderNeighborhood(nb);
+      }
+      if (change.type === "removed") {
+        // Logic to find and remove layer
+        neighborhoodLayer.eachLayer(layer => {
+          if (layer._nbId === nb.id) neighborhoodLayer.removeLayer(layer);
+        });
+        delete state.neighborhoods[nb.id];
+      }
+    });
+  });
+}
 
   enterBtn.addEventListener("click", () => {
     const name = nicknameInput.value.trim();
@@ -126,9 +186,14 @@ function boot() {
   clearLogBtn.addEventListener("click", () => {
     if (!confirm("Clear activity log?")) return;
     state.log = [];
-    saveState();
-    renderLog();
-  });
+    async function syncDot(dotId, dotData) {
+  if (!dotData) return;
+  await fs.setDoc(fs.doc(db, "dots", dotId), dotData);
+}
+
+async function syncNeighborhood(nbId, nbData) {
+  await fs.setDoc(fs.doc(db, "neighborhoods", nbId), nbData);
+}
 
   // Map init
   initMap();
