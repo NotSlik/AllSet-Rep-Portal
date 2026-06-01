@@ -1,241 +1,232 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AllSet CRM</title>
-  <link rel="stylesheet" href="styles.css" />
+  <!-- Leaflet Core Wrapper CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@0.4.14/dist/leaflet.draw.css" />
+  <style>
+    :root {
+      --bg-main: #0f172a; --bg-card: #1e293b; --accent: #38bdf8; --text: #f8fafc;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+    body { background: var(--bg-main); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+    
+    /* Gate Overlay Setup */
+    #gate { position: fixed; inset: 0; background: rgba(15,23,42,0.95); z-index: 9999; display: grid; place-items: center; padding: 20px; }
+    .gateCard { background: var(--bg-card); padding: 30px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); }
+    .gateCard h2 { margin-bottom: 8px; text-align: center; }
+    .gateCard p { text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+    .inputGroup { margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .inputGroup label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
+    .inputGroup input, .inputGroup select { background: #0f172a; border: 1px solid rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; color: var(--text); font-size: 15px; outline: none; }
+    .inputGroup input:focus { border-color: var(--accent); }
+    .actionBtn { background: var(--accent); color: #000; font-weight: 600; padding: 12px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-size: 15px; margin-top: 10px; transition: opacity 0.2s; }
+    .actionBtn:hover { opacity: 0.9; }
+
+    /* Main Grid Wrapper */
+    #app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+    #app.app--locked { filter: blur(5px); pointer-events: none; }
+
+    /* Dynamic Protection Styles */
+    #nav { background: var(--bg-card); padding: 20px 12px; display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.08); }
+    .navBrand { font-weight: 800; font-size: 20px; color: var(--accent); padding: 10px; margin-bottom: 20px; text-align: center; }
+    .navBtn { background: transparent; border: none; color: #94a3b8; padding: 12px; text-align: left; border-radius: 8px; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; width: 100%; transition: all 0.2s; }
+    .navBtn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+    .navBtn.active { background: var(--accent); color: #000; font-weight: 600; }
+    
+    /* Administrative Menu Split & Blur Elements */
+    .admin-divider { margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px; text-align: center; font-size: 11px; color: #64748b; letter-spacing: 1px; }
+    .navBtn.protected { filter: blur(1.5px); opacity: 0.6; position: relative; }
+    .navBtn.protected:hover { filter: blur(0px); opacity: 1; }
+
+    main { padding: 30px; overflow-y: auto; height: 100vh; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Map Page Enhancements */
+    #page-map { height: 100%; display: flex; flex-direction: column; gap: 15px; }
+    .map-controls { display: flex; gap: 10px; flex-wrap: wrap; background: var(--bg-card); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
+    #map { flex: 1; min-height: calc(100vh - 160px); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); width: 100%; }
+
+    /* Utilities & Layout Boxes */
+    .card { background: var(--bg-card); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.08); }
+    .formGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+    .formGrid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #94a3b8; }
+    .formGrid input, .formGrid select, .formGrid textarea { background: #0f172a; border: 1px solid rgba(255,255,255,0.12); padding: 10px; border-radius: 6px; color: white; outline: none; }
+    
+    /* Tables */
+    .dataTable { width: 100%; border-collapse: collapse; margin-top: 10px; text-align: left; }
+    .dataTable th { background: #0f172a; padding: 12px; font-size: 13px; color: #94a3b8; text-transform: uppercase; }
+    .dataTable td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; }
+    .ghostBtn { background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .ghostBtn:hover { background: var(--accent); color: #000; }
+    .dangerBtn { background: #ef4444; color: #fff; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+
+    #toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 12px 24px; border-radius: 8px; font-weight: 600; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .hidden { display: none !important; }
+  </style>
 </head>
 <body>
-  <div id="gate" class="gate">
+
+  <!-- Gate Access Point -->
+  <div id="gate">
     <div class="gateCard">
-      <div class="brand">
-        <div class="logoDot"></div>
-        <div>
-          <div class="brandTitle">AllSet CRM</div>
-          <div class="brandSub">Live rep portal + business command center.</div>
-        </div>
+      <h2>AllSet System Gate</h2>
+      <p>Identify your station profile access</p>
+      <div class="inputGroup">
+        <label>Enter Nickname</label>
+        <input type="text" id="nicknameInput" placeholder="Your tracking name...">
       </div>
-      <label for="nicknameInput">Nickname</label>
-      <input id="nicknameInput" placeholder="Laith" maxlength="24" />
-      <label for="roleSelect">Role</label>
-      <select id="roleSelect">
-        <option value="rep">Rep</option>
-        <option value="owner">Owner/Admin</option>
-        <option value="cleaner">Cleaner</option>
-      </select>
-      <div id="ownerCodeWrap" class="hidden">
-        <label for="ownerCodeInput">Owner Code</label>
-        <input id="ownerCodeInput" type="password" placeholder="Enter owner code" inputmode="numeric" autocomplete="off" />
+      <div class="inputGroup">
+        <label>Assigned App Role</label>
+        <select id="roleSelect">
+          <option value="rep">Field Sales Representative</option>
+          <option value="cleaner">Technician Cleaner</option>
+        </select>
       </div>
-      <button id="enterBtn" type="button">Enter CRM</button>
-      <div class="gateHint">Uses the same live Firebase map, dots, neighborhoods, presence, and shared data.</div>
+      <button type="button" id="enterBtn" class="actionBtn">Launch Portal</button>
     </div>
   </div>
 
-  <div id="app" class="app app--locked">
-    <div class="topbar">
-      <div class="topLeft">
-        <span class="pill">AllSet CRM</span>
-        <span class="pill">Rep: <strong id="repName">—</strong></span>
-        <span class="pill">Role: <strong id="roleName">—</strong></span>
-        <span class="pill hideSmall">Assigned: <strong id="assignedText">None</strong></span>
-      </div>
-      <div class="topCenter">
-        <input id="globalSearch" placeholder='Search address, customer, phone, or dot label' />
-        <button id="globalSearchBtn" class="ghostBtn" type="button">Search</button>
-      </div>
-      <div class="topRight">
-        <button id="changeNameBtn" class="chipBtn" type="button">Profile</button>
-        <button id="mobileNavBtn" class="chipBtn" type="button">Menu</button>
-      </div>
-    </div>
+  <!-- Primary System Context Application -->
+  <div id="app" class="app--locked">
+    <nav id="nav">
+      <div class="navBrand">ALLSET LIVE</div>
+      <button class="navBtn active" data-page="dashboard">📊 Dashboard</button>
+      <button class="navBtn" data-page="map">🗺️ Operations Map</button>
+      <button class="navBtn" data-page="leads">💼 Live Leads</button>
+      <button class="navBtn" data-page="jobs">📅 Scheduled Jobs</button>
+      <button class="navBtn" data-page="customers">👥 Customers</button>
+      <button class="navBtn" data-page="team">🤝 Team Roster</button>
+      <button class="navBtn" data-page="schedules">⏰ Work Schedules</button>
 
-    <div class="shell">
-      <aside id="nav" class="nav panel">
-        <div class="panelHeader">
-          <div class="panelTitle">Navigation</div>
-          <div class="panelSub">Full AllSet system</div>
+      <!-- Visual Section Spacing & Locked Blocks -->
+      <div class="admin-divider">SECURE UTILITIES</div>
+      <button class="navBtn protected" data-page="payments" data-protected="true">💳 Payments Tracker</button>
+      <button class="navBtn protected" data-page="equipment" data-protected="true">🛠️ Tool Equipment</button>
+      <button class="navBtn protected" data-page="admin" data-protected="true">⚙️ Portal Settings</button>
+      
+      <div style="margin-top: auto; padding: 10px; font-size: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; text-align: center;">
+        Active User: <span id="repName" style="color:var(--accent); font-weight:600;">—</span> (<span id="roleName">—</span>)
+        <button id="resetMyProfileBtn" class="dangerBtn" style="width:100%; margin-top:8px; padding:4px;">Log Out</button>
+      </div>
+    </nav>
+
+    <main>
+      <!-- Page Dashboard -->
+      <div id="page-dashboard" class="page active">
+        <div class="card">
+          <h1>Welcome Back</h1>
+          <p class="muted">Live updates synchronized via Firebase system nodes.</p>
         </div>
-        <button class="navBtn active" data-page="dashboard">Dashboard</button>
-        <button class="navBtn" data-page="map">Live Map</button>
-        <button class="navBtn" data-page="leads">Leads</button>
-        <button class="navBtn" data-page="jobs">Jobs</button>
-        <button class="navBtn" data-page="schedule">Scheduling</button>
-        <button class="navBtn" data-page="customers">Customers</button>
-        <button class="navBtn" data-page="team">Team</button>
-        <button class="navBtn" data-page="payments">Payments</button>
-        <button class="navBtn" data-page="equipment">Equipment</button>
-        <button class="navBtn" data-page="admin">Admin</button>
-        <div class="card navCard">
-          <div class="miniTitle">Online</div>
-          <div id="onlineList" class="list compact"></div>
-        </div>
-      </aside>
+      </div>
+
+      <!-- Operations Map View -->
       <div id="page-map" class="page">
-  <div id="map" style="height: 500px; width: 100%;"></div>
-</div>
-
-      <main class="main">
-        <section id="page-dashboard" class="page active">
-          <div class="pageHeader">
-            <div><h1>Dashboard</h1><p>Live snapshot of knocking, sales, revenue, jobs, and team movement.</p></div>
-            <button id="quickLeadBtn" class="actionBtn" type="button">+ Quick Lead</button>
+        <div class="map-controls">
+          <button id="addDotBtn" class="ghostBtn">+ Add Tracking Dot</button>
+          <button id="drawBtn" class="ghostBtn">✏️ Draw Territory</button>
+          <button id="gpsBtn" class="ghostBtn">GPS Tracking: Off</button>
+          <div style="margin-left: auto; display: flex; gap: 6px;">
+            <input id="searchInput" placeholder="Search address dots..." style="background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:white; padding:4px 10px; outline:none;" />
+            <button id="searchBtn" class="ghostBtn">Find</button>
+            <button id="clearSearchBtn" class="ghostBtn">Clear</button>
           </div>
-          <div class="statsGrid">
-            <div class="statCard"><span>Today Revenue</span><strong id="statTodayRevenue">$0</strong><small>Completed + sold today</small></div>
-            <div class="statCard"><span>Week Revenue</span><strong id="statWeekRevenue">$0</strong><small>All reps combined</small></div>
-            <div class="statCard"><span>Sold Dots</span><strong id="statSoldDots">0</strong><small>Map closes</small></div>
-            <div class="statCard"><span>Active Jobs</span><strong id="statActiveJobs">0</strong><small>Scheduled / in progress</small></div>
-          </div>
-          <div class="grid2">
-            <div class="panel softPanel">
-              <div class="panelHeader"><div class="panelTitle">Weekly D2D Leaders</div><div class="panelSub">Revenue brought in this week</div></div>
-              <div id="podium" class="podium"></div>
-            </div>
-            <div class="panel softPanel">
-              <div class="panelHeader"><div class="panelTitle">Pipeline</div><div class="panelSub">Live lead and job counts</div></div>
-              <div class="card noMargin">
-                <div class="row"><span class="label">Leads</span><span id="dashLeads" class="value">0</span></div>
-                <div class="row"><span class="label">Quotes</span><span id="dashQuotes" class="value">0</span></div>
-                <div class="row"><span class="label">Scheduled</span><span id="dashScheduled" class="value">0</span></div>
-                <div class="row"><span class="label">Completed</span><span id="dashCompleted" class="value">0</span></div>
-                <div class="row"><span class="label">Unpaid</span><span id="dashUnpaid" class="value">0</span></div>
-              </div>
-            </div>
-          </div>
-          <div class="panel softPanel">
-            <div class="panelHeader"><div class="panelTitle">Recent Activity</div><button id="clearLogBtn" class="dangerBtn smallBtn" type="button">Clear</button></div>
-            <div id="log" class="log wideLog"></div>
-          </div>
-        </section>
-
-        <section id="page-map" class="page">
-          <div class="mapPageGrid">
-            <aside class="panel mapSide">
-              <div class="panelHeader"><div class="panelTitle">Map Controls</div><div class="panelSub">Same live rep portal data</div></div>
-              <div class="card">
-                <div class="miniTitle">Core</div>
-                <button id="gpsBtn" class="ghostBtn btnFull" type="button">GPS: Off</button>
-                <button id="addDotBtn" class="actionBtn btnFull" type="button">+ Add Dot</button>
-                <button id="drawBtn" class="actionBtn btnFull" type="button">✏️ Draw Territory</button>
-              </div>
-              <div class="card">
-                <div class="miniTitle">Search Map</div>
-                <input id="searchInput" placeholder='House label: "214 Oak"' />
-                <div class="buttonRow"><button id="searchBtn" class="ghostBtn" type="button">Find</button><button id="clearSearchBtn" class="ghostBtn" type="button">Clear</button></div>
-              </div>
-              <div class="card">
-                <div class="miniTitle">Counts</div>
-                <div class="row"><span class="label">✅ Yes / Closed</span><span id="countYes" class="value">0</span></div>
-                <div class="row"><span class="label">❌ No</span><span id="countNo" class="value">0</span></div>
-                <div class="row"><span class="label">🏃 Not Home</span><span id="countNotHome" class="value">0</span></div>
-                <div class="row"><span class="label">📞 Callback</span><span id="countCallback" class="value">0</span></div>
-                <div class="row"><span class="label">🟨 Knocked</span><span id="countKnocked" class="value">0</span></div>
-                <div class="row"><span class="label">⏭️ Skip</span><span id="countSkip" class="value">0</span></div>
-              </div>
-            </aside>
-            <main class="mapWrap"><div id="map"></div></main>
-          </div>
-        </section>
-
-        <section id="page-leads" class="page tablePage">
-          <div class="pageHeader"><div><h1>Leads</h1><p>Every house/customer opportunity from the map or manual entry.</p></div><button class="actionBtn" data-open="leadModal" type="button">+ Add Lead</button></div>
-          <div id="leadsTable" class="tableCard"></div>
-        </section>
-
-        <section id="page-jobs" class="page tablePage">
-          <div class="pageHeader"><div><h1>Jobs</h1><p>Schedule work, assign cleaners, mark completed.</p></div><button class="actionBtn" data-open="jobModal" type="button">+ Add Job</button></div>
-          <div id="jobsTable" class="tableCard"></div>
-        </section>
-
-        <section id="page-schedule" class="page tablePage">
-          <div class="pageHeader"><div><h1>Scheduling</h1><p>Reps add their weekly availability like a Scheels-style team schedule.</p></div><button id="saveScheduleBtn" class="actionBtn" type="button">Save My Schedule</button></div>
-          <div class="grid2">
-            <div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">My Weekly Availability</div><div class="panelSub">Pick free/busy and time windows</div></div><div id="mySchedule" class="scheduleEditor"></div></div>
-            <div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Team Schedule Board</div><div class="panelSub">Live saved schedules</div></div><div id="teamSchedule" class="scheduleBoard"></div></div>
-          </div>
-        </section>
-
-        <section id="page-customers" class="page tablePage">
-          <div class="pageHeader"><div><h1>Customers</h1><p>Lifetime customer database and recurring service memory.</p></div><button class="actionBtn" data-open="customerModal" type="button">+ Add Customer</button></div>
-          <div id="customersTable" class="tableCard"></div>
-        </section>
-
-        <section id="page-team" class="page tablePage">
-          <div class="pageHeader"><div><h1>Team</h1><p>Rep sales, commissions, close rate, and cleaner work.</p></div><button class="actionBtn" data-open="teamModal" type="button">+ Add Team Member</button></div>
-          <div id="teamTable" class="tableCard"></div>
-        </section>
-
-        <section id="page-payments" class="page tablePage">
-          <div class="pageHeader"><div><h1>Payments</h1><p>Track paid/unpaid jobs and quick-open payment apps/tags.</p></div><button class="actionBtn" data-open="paymentModal" type="button">+ Add Payment</button></div>
-          <div class="paymentLinks panel softPanel">
-            <div class="panelHeader"><div class="panelTitle">Quick Payment Buttons</div><div class="panelSub">Customer-facing collection options</div></div>
-            <div class="payGrid">
-              <a id="cashAppLink" class="payBtn" target="_blank">Cash App<br><small id="cashAppTag">$AllSet</small></a>
-              <a id="venmoLink" class="payBtn" target="_blank">Venmo<br><small id="venmoTag">@AllSet</small></a>
-              <div class="payBtn" style="opacity:.45;cursor:default" title="Coming soon">Zelle<br><small id="zelleTag">allset@example.com</small><br><small style="color:rgba(255,255,255,.4)">copy manually</small></div>
-              <div class="payBtn" style="opacity:.45;cursor:default" title="Coming soon">Card<br><small>Square / Stripe</small><br><small style="color:rgba(255,255,255,.4)">coming soon</small></div>
-            </div>
-          </div>
-          <div id="paymentsTable" class="tableCard"></div>
-        </section>
-
-        <section id="page-equipment" class="page tablePage">
-          <div class="pageHeader"><div><h1>Equipment</h1><p>Locker access, DI systems, checkout status, and tracker notes.</p></div><button class="actionBtn" data-open="equipmentModal" type="button">+ Add Equipment</button></div>
-          <div id="equipmentTable" class="tableCard"></div>
-        </section>
-
-        <section id="page-admin" class="page tablePage">
-          <div class="pageHeader"><div><h1>Admin</h1><p>Settings, payment tags, lock codes, and live system controls.</p></div><button id="saveSettingsBtn" class="actionBtn" type="button">Save Settings</button></div>
-          <div class="grid2">
-            <div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Payment Settings</div></div><div class="formGrid card noMargin"><label>Cash App Tag<input id="setCashApp" placeholder="$AllSet" /></label><label>Venmo Tag<input id="setVenmo" placeholder="@AllSet" /></label><label>Zelle Info<input id="setZelle" placeholder="phone/email" /></label></div></div>
-            <div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Equipment Access</div></div><div class="formGrid card noMargin"><label>Locker Location<input id="setLocker" placeholder="Storage address / garage" /></label><label>Door Code<input id="setDoorCode" placeholder="rotating code" /></label><label>Tracker Note<input id="setTrackerNote" placeholder="DI trackers hidden under frame" /></label></div></div>
-          </div>
-          <div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">System Maintenance</div></div><div class="card noMargin"><button id="resetMyProfileBtn" class="dangerBtn" type="button">Reset My Profile Login</button><span class="muted padLeft">Does not delete shared CRM/map data.</span></div></div>
-        </section>
-      </main>
-    </div>
-
-    <button id="reviewHandle" class="reviewHandle" type="button">Review</button>
-    <div id="toast" class="toast hidden"></div>
-  </div>
-
-  <div id="modalBackdrop" class="modalBackdrop hidden">
-    <div id="modalCard" class="modalCard"></div>
-  </div>
-
-  <div id="reviewOverlay" class="reviewOverlay hidden">
-    <div class="reviewCard">
-      <div id="reviewLogin">
-        <h2>Monthly Income Review</h2>
-        <p class="muted">Enter access code.</p>
-        <input id="reviewPassword" type="password" placeholder="Password" />
-        <button id="reviewEnterBtn" class="actionBtn btnFull" type="button">Open</button>
-      </div>
-      <div id="reviewEdit" class="hidden">
-        <div class="reviewTop"><div><h2>Monthly Income Review</h2><p class="muted">Edit display numbers.</p></div><button id="reviewCloseBtn" class="ghostBtn" type="button">Close</button></div>
-        <div class="formGrid">
-          <label>Monthly Revenue<input id="reviewRevenue" type="number" /></label>
-          <label>Net Profit<input id="reviewProfit" type="number" /></label>
-          <label>Recurring Revenue<input id="reviewRecurring" type="number" /></label>
-          <label>Jobs Completed<input id="reviewJobs" type="number" /></label>
-          <label>Doors Knocked<input id="reviewDoors" type="number" /></label>
-          <label>Close Rate %<input id="reviewCloseRate" type="number" /></label>
         </div>
-        <button id="reviewUpdateBtn" class="actionBtn btnFull" type="button">Update Screen</button>
+        <div id="map"></div>
       </div>
-      <div id="reviewDisplay" class="hidden">
-        <div class="reviewTop"><div><h2>Monthly Income Review</h2><p class="muted">AllSet performance summary</p></div><button id="reviewBackBtn" class="ghostBtn" type="button">Back</button></div>
-        <div id="reviewNumbers" class="reviewNumbers"></div>
+
+      <!-- Live Leads View -->
+      <div id="page-leads" class="page">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>Live Pipeline Leads</h2>
+            <button class="actionBtn" style="width:auto; padding:8px 16px; margin:0;" onclick="window.openEntityModal('leadModal')">+ New Lead</button>
+          </div>
+          <div id="leadsTable"></div>
+        </div>
       </div>
-    </div>
+
+      <!-- Scheduled Jobs View -->
+      <div id="page-jobs" class="page">
+        <div class="card">
+          <h2>Active Service Schedule</h2>
+          <div id="jobsTable"></div>
+        </div>
+      </div>
+
+      <!-- Customers View -->
+      <div id="page-customers" class="page">
+        <div class="card">
+          <h2>Database Management Customers</h2>
+          <div id="customersTable"></div>
+        </div>
+      </div>
+
+      <!-- Team Roster View -->
+      <div id="page-team" class="page">
+        <div class="card">
+          <h2>Active Field Personnel</h2>
+          <div id="teamTable"></div>
+        </div>
+      </div>
+
+      <!-- Work Schedules View -->
+      <div id="page-schedules" class="page">
+        <div class="card">
+          <h2>Your Working Availability Setup</h2>
+          <div id="mySchedule" class="formGrid" style="display:flex; flex-direction:column; gap:10px;"></div>
+          <button id="saveScheduleBtn" class="actionBtn" style="width:auto; padding:10px 20px;">Save Live Schedule</button>
+        </div>
+        <div class="card">
+          <h2>All-Active Personnel Timetable Grid</h2>
+          <div id="teamGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:15px; margin-top:15px;"></div>
+        </div>
+      </div>
+
+      <!-- Secure Protected Modules -->
+      <div id="page-payments" class="page">
+        <div class="card">
+          <h2>Secure Financial Transactions Ledger</h2>
+          <div id="paymentsTable"></div>
+        </div>
+      </div>
+
+      <div id="page-equipment" class="page">
+        <div class="card">
+          <h2>Company Hard-Tool Hardware Assets</h2>
+          <div id="equipmentTable"></div>
+        </div>
+      </div>
+
+      <div id="page-admin" class="page">
+        <div class="card">
+          <h2>System Variables Setup Administration</h2>
+          <div class="formGrid">
+            <label>CashApp Tag <input id="setCashApp" /></label>
+            <label>Venmo Username <input id="setVenmo" /></label>
+            <label>Zelle Address Contact <input id="setZelle" /></label>
+          </div>
+          <button id="saveSettingsBtn" class="actionBtn" style="width:auto; padding:10px 20px;">Commit Overrides</button>
+        </div>
+      </div>
+    </main>
   </div>
 
+  <!-- Global Modal Stack Backdrop Layout -->
+  <div id="modalBackdrop" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:20000; display:grid; place-items:center; padding:20px;">
+    <div id="modalCard" class="card" style="width:100%; max-width:600px; margin:0; overflow-y:auto; max-height:90vh;"></div>
+  </div>
+
+  <div id="toast" class="hidden"></div>
+
+  <!-- Third-Party Library Dependences Map Layers -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@0.4.14/dist/leaflet.draw.js"></script>
+  <!-- Application Core Controller Logic -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
