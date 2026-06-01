@@ -38,30 +38,16 @@ const markerById = new Map(), nbLayerById = new Map();
 let dotsCache = {}, neighborhoodsCache = {}, repsCache = {}, logCache = [];
 let leadsCache = {}, jobsCache = {}, customersCache = {}, paymentsCache = {}, equipmentCache = {}, schedulesCache = {}, settingsCache = {}, reviewCache = {};
 
-// Start executing right away
 boot();
 
 async function boot(){
-  // CRITICAL: Initialize static events first so buttons work even if components crash
   initStaticEvents();
-  
-  try {
-    initScheduleEditor();
-  } catch(e) { console.warn("Schedule editor init warning:", e.message); }
-
+  initScheduleEditor();
+  initMap();
   const savedName = localStorage.getItem(LS_NAME); if(savedName) nicknameInput.value = savedName;
   const savedRole = localStorage.getItem(LS_ROLE); if(savedRole) roleSelect.value = savedRole;
-  
   toggleOwnerPin();
   lockApp(true);
-
-  // Safe initialize map
-  try {
-    initMap();
-  } catch(e) {
-    console.error("Map initialization delayed or failed:", e.message);
-  }
-
   signInAnonymously(auth).catch(err => console.warn("Firebase auth:", err.message));
   onAuthStateChanged(auth, async user => {
     if(user){ currentUid = user.uid; if(currentName){ try{ await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name:currentName,role:currentRole,updatedAt:serverTimestamp()},{merge:true}); setupPresence(); subscribeAll(); }catch(e){ console.warn("Firebase sync failed"); } } }
@@ -69,43 +55,34 @@ async function boot(){
 }
 
 function initStaticEvents(){
-  if (enterBtn) enterBtn.onclick = handleEnter;
-  if (nicknameInput) nicknameInput.onkeydown = e => { if(e.key === "Enter") handleEnter(); };
-  if (roleSelect) roleSelect.onchange = toggleOwnerPin;
-  if (ownerCodeInput) ownerCodeInput.onkeydown = e => { if(e.key === "Enter") handleEnter(); };
+  if (enterBtn) enterBtn.addEventListener("click", handleEnter);
+  if (nicknameInput) nicknameInput.addEventListener("keydown", e => { if(e.key === "Enter") enterBtn.click(); });
+  if (roleSelect) roleSelect.addEventListener("change", toggleOwnerPin);
+  if (ownerCodeInput) ownerCodeInput.addEventListener("keydown", e => { if(e.key === "Enter") enterBtn.click(); });
+  if ($("changeNameBtn")) $("changeNameBtn").addEventListener("click", showGate);
+  if (mobileNavBtn) mobileNavBtn.addEventListener("click", () => nav.classList.toggle("open"));
   
-  if ($("changeNameBtn")) $("changeNameBtn").onclick = showGate;
-  if (mobileNavBtn) mobileNavBtn.onclick = () => nav.classList.toggle("open");
+  document.querySelectorAll(".navBtn").forEach(btn => btn.addEventListener("click", () => showPage(btn.dataset.page)));
+  document.querySelectorAll("[data-open]").forEach(btn => btn.addEventListener("click", () => openEntityModal(btn.dataset.open)));
   
-  document.querySelectorAll(".navBtn").forEach(btn => btn.onclick = () => showPage(btn.dataset.page));
-  document.querySelectorAll("[data-open]").forEach(btn => btn.onclick = () => openEntityModal(btn.dataset.open));
+  if ($("quickLeadBtn")) $("quickLeadBtn").addEventListener("click", () => openEntityModal("leadModal"));
+  if ($("saveScheduleBtn")) $("saveScheduleBtn").addEventListener("click", saveMySchedule);
+  if ($("saveSettingsBtn")) $("saveSettingsBtn").addEventListener("click", saveSettings);
+  if ($("resetMyProfileBtn")) $("resetMyProfileBtn").addEventListener("click", async () => { localStorage.removeItem(LS_NAME); localStorage.removeItem(LS_ROLE); if(currentUid) await deleteDoc(doc(db,"reps",currentUid)); location.reload(); });
   
-  if ($("quickLeadBtn")) $("quickLeadBtn").onclick = () => openEntityModal("leadModal");
-  if ($("saveScheduleBtn")) $("saveScheduleBtn").onclick = saveMySchedule;
-  if ($("saveSettingsBtn")) $("saveSettingsBtn").onclick = saveSettings;
-  
-  if ($("resetMyProfileBtn")) {
-    $("resetMyProfileBtn").onclick = async () => { 
-      localStorage.removeItem(LS_NAME); 
-      localStorage.removeItem(LS_ROLE); 
-      if (currentUid) await deleteDoc(doc(db,"reps",currentUid)); 
-      location.reload(); 
-    };
-  }
-  
-  if (globalSearchBtn) globalSearchBtn.onclick = runGlobalSearch;
-  if (globalSearch) globalSearch.onkeydown = e => { if(e.key === "Enter") runGlobalSearch(); };
-  if (modalBackdrop) modalBackdrop.onclick = e => { if(e.target === modalBackdrop) closeModal(); };
+  if (globalSearchBtn) globalSearchBtn.addEventListener("click", runGlobalSearch);
+  if (globalSearch) globalSearch.addEventListener("keydown", e => { if(e.key === "Enter") runGlobalSearch(); });
+  if (modalBackdrop) modalBackdrop.addEventListener("click", e => { if(e.target === modalBackdrop) closeModal(); });
   
   initReviewEvents();
 
-  if ($("gpsBtn")) $("gpsBtn").onclick = () => gpsOn ? stopGps() : startGps();
-  if ($("addDotBtn")) $("addDotBtn").onclick = toggleAddDot;
-  if ($("drawBtn")) $("drawBtn").onclick = toggleDraw;
-  if ($("searchBtn")) $("searchBtn").onclick = doSearch;
-  if ($("clearSearchBtn")) $("clearSearchBtn").onclick = clearSearch;
-  if ($("searchInput")) $("searchInput").onkeydown = e => { if(e.key === "Enter") doSearch(); };
-  if ($("clearLogBtn")) $("clearLogBtn").onclick = () => { if(currentRole !== "owner"){ toast("Only owners can clear the log"); return; } clearRemoteLog(); };
+  if ($("gpsBtn")) $("gpsBtn").addEventListener("click", () => gpsOn ? stopGps() : startGps());
+  if ($("addDotBtn")) $("addDotBtn").addEventListener("click", toggleAddDot);
+  if ($("drawBtn")) $("drawBtn").addEventListener("click", toggleDraw);
+  if ($("searchBtn")) $("searchBtn").addEventListener("click", doSearch);
+  if ($("clearSearchBtn")) $("clearSearchBtn").addEventListener("click", clearSearch);
+  if ($("searchInput")) $("searchInput").addEventListener("keydown", e => { if(e.key === "Enter") doSearch(); });
+  if ($("clearLogBtn")) $("clearLogBtn").addEventListener("click", () => { if(currentRole !== "owner"){ toast("Only owners can clear the log"); return; } clearRemoteLog(); });
 }
 
 async function handleEnter(){
@@ -136,6 +113,7 @@ async function handleEnter(){
       currentUid = cred.user.uid;
     }catch(e){
       toast("Firebase login failed");
+      console.warn("Firebase auth failed", e);
       return;
     }
   }
@@ -151,6 +129,8 @@ async function handleEnter(){
     subscribeAll();
   }catch(e){
     console.warn("Firebase write failed", e);
+    toast("Live sync failed — check Firebase rules/connection");
+    return;
   }
 
   completeLogin();
@@ -170,14 +150,12 @@ function completeLogin(){
   if (nicknameInput) nicknameInput.value = currentName; 
   if (roleSelect) roleSelect.value = currentRole; 
   toggleOwnerPin();
-  
-  // Safe layout recompute for Leaflet map if available
-  setTimeout(()=>{ if(map && map.invalidateSize) map.invalidateSize(); }, 250); 
+  setTimeout(()=>map?.invalidateSize?.(),250); 
   toast(`Welcome, ${currentName} 👋`);
 }
 
-function showGate(){ if(gate) gate.style.display="grid"; if(appRoot) appRoot.classList.add("app--locked"); setTimeout(()=>nicknameInput?.focus(),60); }
-function lockApp(focus=false){ if(gate) gate.style.display="grid"; if(appRoot) appRoot.classList.add("app--locked"); if(focus) setTimeout(()=>nicknameInput?.focus(),60); }
+function showGate(){ if(gate) gate.style.display="grid"; if(appRoot) appRoot.classList.add("app--locked"); setTimeout(()=>nicknameInput.focus(),60); }
+function lockApp(focus=false){ if(gate) gate.style.display="grid"; if(appRoot) appRoot.classList.add("app--locked"); if(focus) setTimeout(()=>nicknameInput.focus(),60); }
 
 function showPage(page){
   document.querySelectorAll(".navBtn").forEach(b => b.classList.toggle("active", b.dataset.page === page));
@@ -185,7 +163,7 @@ function showPage(page){
   const targetPage = $(`page-${page}`);
   if (targetPage) targetPage.classList.add("active"); 
   if (nav) nav.classList.remove("open");
-  if(page === "map" && map) setTimeout(()=>map.invalidateSize(),250);
+  if(page === "map") setTimeout(()=>map.invalidateSize(),250);
 }
 
 function setupPresence(){
@@ -196,12 +174,8 @@ function setupPresence(){
 
 function renderOnline(data){
   if (!onlineListEl) return;
-  onlineListEl.innerHTML = ""; 
-  const users = Object.values(data);
-  if(!users.length) {
-    onlineListEl.innerHTML = `<div class="listItem">No one online yet</div>`;
-    return;
-  }
+  onlineListEl.innerHTML = ""; const users = Object.values(data);
+  if(!users.length) onlineListEl.innerHTML = `<div class="listItem">No one online yet</div>`;
   users.forEach(u => { const div=document.createElement("div"); div.className="listItem"; div.textContent=`🟢 ${u.name}${u.uid===currentUid?" (you)":""}`; onlineListEl.appendChild(div); });
 }
 
@@ -222,7 +196,6 @@ function subscribeAll(){
 
 function renderAll(){ renderDashboard(); renderLeads(); renderJobs(); renderCustomers(); renderTeam(); renderPayments(); renderEquipment(); }
 function money(n){ return "$" + Number(n||0).toLocaleString(); }
-// Date calculations safely wrapped
 function todayStart(){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
 function weekStart(){ const d=new Date(); const day=d.getDay()||7; d.setDate(d.getDate()-day+1); d.setHours(0,0,0,0); return d.getTime(); }
 function dateVal(v){ if(!v) return 0; if(typeof v === "number") return v; if(v.seconds) return v.seconds*1000; const t = new Date(v).getTime(); return Number.isFinite(t)?t:0; }
@@ -234,21 +207,19 @@ function renderDashboard(){
   const weekRevenue = [...leads,...jobs].filter(x=>dateVal(x.createdAt||x.scheduledAt)>=ws).reduce((s,x)=>s+Number(x.amount||x.quote||x.price||0),0);
   const todayRevenue = [...leads,...jobs].filter(x=>dateVal(x.createdAt||x.completedAt)>=ts).reduce((s,x)=>s+Number(x.amount||x.quote||x.price||0),0);
   
-  if($("statTodayRevenue")) $("statTodayRevenue").textContent = money(todayRevenue); 
-  if($("statWeekRevenue")) $("statWeekRevenue").textContent = money(weekRevenue);
-  if($("statSoldDots")) $("statSoldDots").textContent = String(dots.filter(d=>d.status==="yes").length);
-  if($("statActiveJobs")) $("statActiveJobs").textContent = String(jobs.filter(j=>["scheduled","in progress"].includes((j.status||"").toLowerCase())).length);
-  
-  if($("dashLeads")) $("dashLeads").textContent = leads.length; 
-  if($("dashQuotes")) $("dashQuotes").textContent = leads.filter(l=>l.status==="quote").length;
-  if($("dashScheduled")) $("dashScheduled").textContent = jobs.filter(j=>j.status==="scheduled").length; 
-  if($("dashCompleted")) $("dashCompleted").textContent = jobs.filter(j=>j.status==="completed").length;
-  if($("dashUnpaid")) $("dashUnpaid").textContent = payments.filter(p=>p.status!=="paid").length;
+  if ($("statTodayRevenue")) $("statTodayRevenue").textContent = money(todayRevenue); 
+  if ($("statWeekRevenue")) $("statWeekRevenue").textContent = money(weekRevenue);
+  if ($("statSoldDots")) $("statSoldDots").textContent = String(dots.filter(d=>d.status==="yes").length);
+  if ($("statActiveJobs")) $("statActiveJobs").textContent = String(jobs.filter(j=>["scheduled","in progress"].includes((j.status||"").toLowerCase())).length);
+  if ($("dashLeads")) $("dashLeads").textContent = leads.length; 
+  if ($("dashQuotes")) $("dashQuotes").textContent = leads.filter(l=>l.status==="quote").length;
+  if ($("dashScheduled")) $("dashScheduled").textContent = jobs.filter(j=>j.status==="scheduled").length; 
+  if ($("dashCompleted")) $("dashCompleted").textContent = jobs.filter(j=>j.status==="completed").length;
+  if ($("dashUnpaid")) $("dashUnpaid").textContent = payments.filter(p=>p.status!=="paid").length;
   
   const repRevenue = {};
   leads.filter(l=>dateVal(l.createdAt)>=ws).forEach(l=>{ const n=leadRepName(l); repRevenue[n]=(repRevenue[n]||0)+Number(l.amount||l.quote||0); });
   jobs.filter(j=>dateVal(j.createdAt||j.scheduledAt)>=ws).forEach(j=>{ const n=j.repName||repsCache[j.repId]?.name||"House"; repRevenue[n]=(repRevenue[n]||0)+Number(j.price||0); });
-  
   const leaders = Object.entries(repRevenue).sort((a,b)=>b[1]-a[1]).slice(0,3);
   const podium = $("podium");
   if(!podium) return;
@@ -370,8 +341,7 @@ async function saveSettings(){
 }
 
 function initMap(){
-  const mapContainer = $("map");
-  if (!mapContainer) return; // Prevent Leaflet crash if container is missing
+  const mapContainer = $("map"); if(!mapContainer) return;
   map = L.map("map",{zoomControl:true}).setView([26.1224,-80.1373],12);
   L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap &copy; CARTO"}).addTo(map);
   neighborhoodLayer = new L.FeatureGroup(); dotLayer = new L.FeatureGroup(); map.addLayer(neighborhoodLayer); map.addLayer(dotLayer);
@@ -383,7 +353,7 @@ function initMap(){
 }
 
 function syncDotMarkers(){
-  if (!dotLayer) return;
+  if(!dotLayer) return;
   const ids=new Set(Object.keys(dotsCache)); for(const [id,marker] of markerById.entries()){ if(!ids.has(id)){dotLayer.removeLayer(marker);markerById.delete(id);} }
   Object.values(dotsCache).forEach(dot=>{ if(markerById.has(dot.id)){const m=markerById.get(dot.id);m.setStyle(dotStyle(dot.status));m.unbindTooltip();if(dot.label)m.bindTooltip(dot.label,{direction:"top",offset:[0,-6]});} else addDotMarker(dot); });
 }
@@ -400,29 +370,20 @@ function openDotPopup(dotId, marker){
 function popupBtn(status,text,kind){ const cls=kind==="danger"?"popBtn popBtn--danger":kind==="ghost"?"popBtn popBtn--ghost":"popBtn"; return `<button class="${cls}" data-s="${status}" type="button">${text}</button>`; }
 
 function syncNeighborhoodLayers(){
-  if (!neighborhoodLayer) return;
+  if(!neighborhoodLayer) return;
   const ids=new Set(Object.keys(neighborhoodsCache)); for(const [id,layer] of nbLayerById.entries()){ if(!ids.has(id)){neighborhoodLayer.removeLayer(layer);nbLayerById.delete(id);} }
   Object.values(neighborhoodsCache).forEach(nb=>{ if(nbLayerById.has(nb.id)) return; const group=L.geoJSON(nb.geojson,{style:{color:nb.color,weight:3,fillColor:nb.color,fillOpacity:.18}}); const layers=[]; group.eachLayer(layer=>{neighborhoodLayer.addLayer(layer); bindNeighborhoodInteractions(nb.id,layer); layers.push(layer);}); nbLayerById.set(nb.id,layers[0]||group); });
 }
 
 function bindNeighborhoodInteractions(nbId, layer){ layer._nbId=nbId; layer.on("click",()=>{ const nb=neighborhoodsCache[nbId]; const isAssigned=assignedNbId===nbId; const html=`<div style="min-width:230px"><div style="font-weight:950;margin-bottom:6px">${esc(nb.name)}</div><div style="display:grid;gap:7px"><button class="popBtn" data-a="${isAssigned?"unassign":"assign"}" type="button">${isAssigned?"🚫 Unassign Me":"✅ Assign Me Here"}</button><button class="popBtn popBtn--danger" data-a="delete" type="button">🗑 Delete Territory</button></div></div>`; layer.bindPopup(L.popup({closeButton:true,autoPan:true}).setContent(html)).openPopup(); setTimeout(()=>{ const root=document.querySelector(".leaflet-popup-content"); root?.querySelectorAll("button[data-a]").forEach(btn=>btn.addEventListener("click",async()=>{ const a=btn.dataset.a; if(a==="assign"){assignedNbId=nbId; await setDoc(doc(db,"reps",currentUid),{assignedNeighborhoodId:nbId},{merge:true}); await addRemoteLog(`🧭 ${currentName} assigned to ${nb.name}`);} if(a==="unassign"){assignedNbId=null; await setDoc(doc(db,"reps",currentUid),{assignedNeighborhoodId:null},{merge:true}); await addRemoteLog(`🧭 ${currentName} unassigned`);} if(a==="delete" && confirm(`Delete ${nb.name}?`)){await deleteDoc(doc(db,"neighborhoods",nbId)); await addRemoteLog(`🗑 ${currentName} deleted territory ${nb.name}`);} map.closePopup(); refreshAssignedText(); })); },0); }); }
 function toggleAddDot(){ addDotMode=!addDotMode; if($("addDotBtn")) $("addDotBtn").textContent=addDotMode?"✓ Add Dot ON":"+ Add Dot"; toast(addDotMode?"Add Dot ON — tap map":"Add Dot OFF"); }
-function toggleDraw(){ drawEnabled=!drawEnabled; if(drawEnabled){if(map && drawControl) map.addControl(drawControl); if($("drawBtn")) $("drawBtn").textContent="✏️ Draw ON";}else{if(map && drawControl) map.removeControl(drawControl); if($("drawBtn")) $("drawBtn").textContent="✏️ Draw Territory";} }
-function doSearch(){ const q=$("searchInput").value.trim().toLowerCase(); if(!q) return; const match=Object.values(dotsCache).find(d=>(d.label||"").toLowerCase().includes(q)); if(!match) return toast("No map match"); const marker=markerById.get(match.id); if (map && marker) { map.setView([match.lat,match.lng],Math.max(map.getZoom(),17)); marker.setStyle({...dotStyle(match.status),radius:10,weight:3}); lastFoundMarker=marker; } toast(`Found: ${match.label||match.id}`); }
+function toggleDraw(){ drawEnabled=!drawEnabled; if(drawEnabled){ if(map) map.addControl(drawControl); if($("drawBtn")) $("drawBtn").textContent="✏️ Draw ON";}else{ if(map) map.removeControl(drawControl); if($("drawBtn")) $("drawBtn").textContent="✏️ Draw Territory";} }
+function doSearch(){ const q=$("searchInput").value.trim().toLowerCase(); if(!q) return; const match=Object.values(dotsCache).find(d=>(d.label||"").toLowerCase().includes(q)); if(!match) return toast("No map match"); const marker=markerById.get(match.id); if(map) map.setView([match.lat,match.lng],Math.max(map.getZoom(),17)); if(marker) marker.setStyle({...dotStyle(match.status),radius:10,weight:3}); lastFoundMarker=marker; toast(`Found: ${match.label||match.id}`); }
 function clearSearch(){ if($("searchInput")) $("searchInput").value=""; if(lastFoundMarker) syncDotMarkers(); }
 function startGps(){ if(!navigator.geolocation) return toast("GPS not supported"); gpsOn=true; if($("gpsBtn")) $("gpsBtn").textContent="GPS: On"; gpsWatchId=navigator.geolocation.watchPosition(pos=>{ const {latitude,longitude,accuracy}=pos.coords; const latlng=[latitude,longitude]; if(!gpsMarker){gpsMarker=L.circleMarker(latlng,{radius:7,weight:3,color:"rgba(56,189,248,.95)",fillColor:"rgba(56,189,248,.55)",fillOpacity:1}).addTo(map).bindTooltip(`${currentName} (you)`); gpsCircle=L.circle(latlng,{radius:Math.max(accuracy,15),weight:1,color:"rgba(56,189,248,.35)",fillColor:"rgba(56,189,248,.12)",fillOpacity:1}).addTo(map);}else{gpsMarker.setLatLng(latlng);gpsCircle.setLatLng(latlng);gpsCircle.setRadius(Math.max(accuracy,15));}},err=>{toast(`GPS error: ${err.message}`);stopGps();},{enableHighAccuracy:true,maximumAge:5000,timeout:15000}); }
 function stopGps(){ gpsOn=false; if($("gpsBtn")) $("gpsBtn").textContent="GPS: Off"; if(gpsWatchId!=null) navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; if(gpsMarker && map) map.removeLayer(gpsMarker); if(gpsCircle && map) map.removeLayer(gpsCircle); gpsMarker=null; gpsCircle=null; }
 
-function renderCounts(){ 
-  const c={yes:0,no:0,nothome:0,callback:0,knocked:0,skip:0}; 
-  Object.values(dotsCache).forEach(d=>{if(d.status in c)c[d.status]++;}); 
-  if($("countYes")) $("countYes").textContent=c.yes;
-  if($("countNo")) $("countNo").textContent=c.no;
-  if($("countNotHome")) $("countNotHome").textContent=c.nothome;
-  if($("countCallback")) $("countCallback").textContent=c.callback;
-  if($("countKnocked")) $("countKnocked").textContent=c.knocked;
-  if($("countSkip")) $("countSkip").textContent=c.skip; 
-}
+function renderCounts(){ const c={yes:0,no:0,nothome:0,callback:0,knocked:0,skip:0}; Object.values(dotsCache).forEach(d=>{if(d.status in c)c[d.status]++;}); if($("countYes"))$("countYes").textContent=c.yes; if($("countNo"))$("countNo").textContent=c.no; if($("countNotHome"))$("countNotHome").textContent=c.nothome; if($("countCallback"))$("countCallback").textContent=c.callback; if($("countKnocked"))$("countKnocked").textContent=c.knocked; if($("countSkip"))$("countSkip").textContent=c.skip; }
 function refreshAssignedText(){ if(!assignedTextEl) return; if(!assignedNbId) assignedTextEl.textContent="None"; else assignedTextEl.textContent=neighborhoodsCache[assignedNbId]?.name||"None"; }
 function statusLabel(s){ return {yes:"Yes / Closed",no:"No",nothome:"Not Home",callback:"Callback",knocked:"Knocked",skip:"Skip",none:"Unmarked"}[s]||"Unmarked"; }
 function dotStyle(status){ const base={radius:7,weight:2,opacity:1,fillOpacity:.92}; const map={yes:["rgba(34,197,94,.95)","rgba(34,197,94,.85)"],no:["rgba(239,68,68,.95)","rgba(239,68,68,.85)"],nothome:["rgba(56,189,248,.95)","rgba(56,189,248,.80)"],callback:["rgba(167,139,250,.95)","rgba(167,139,250,.80)"],knocked:["rgba(245,158,11,.95)","rgba(245,158,11,.85)"],skip:["rgba(255,255,255,.35)","rgba(255,255,255,.18)"]}; const x=map[status]||["rgba(255,255,255,.40)","rgba(160,160,160,.65)"]; return {...base,color:x[0],fillColor:x[1],fillOpacity:status?base.fillOpacity:.75}; }
@@ -451,21 +412,19 @@ function closeModal(){ if(modalBackdrop) modalBackdrop.classList.add("hidden"); 
 function labelize(s){ return s.replace(/([A-Z])/g," $1").replace(/^./,c=>c.toUpperCase()); }
 
 async function addRemoteLog(text){ const entry={t:Date.now(),text}; if(db) await setDoc(doc(db,"shared","activityLog"),{entries:[entry,...logCache].slice(0,150)}); }
-async function clearRemoteLog(){ if(!confirm("Clear activity log for everyone?")) return; await setDoc(doc(db,"shared","activityLog"),{entries:[]}); }
+async function clearRemoteLog(){ if(!confirm("Clear activity log for everyone?")) return; if(db) await setDoc(doc(db,"shared","activityLog"),{entries:[]}); }
 function renderLog(){ const logEl=$("log"); if(!logEl) return; logEl.innerHTML=""; logCache.forEach(item=>{ const div=document.createElement("div"); div.className="logItem"; const time=new Date(item.t).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); div.textContent=`[${time}] ${item.text}`; logEl.appendChild(div); }); }
 function runGlobalSearch(){ const q=globalSearch.value.trim().toLowerCase(); if(!q) return; const lead=Object.values(leadsCache).find(x=>[x.name,x.phone,x.address,x.service].some(v=>String(v||"").toLowerCase().includes(q))); if(lead){showPage("leads"); toast(`Found lead: ${lead.name||lead.address}`); return;} const dot=Object.values(dotsCache).find(x=>String(x.label||"").toLowerCase().includes(q)); if(dot && map){showPage("map"); setTimeout(()=>{map.setView([dot.lat,dot.lng],17);},260); return;} toast("No CRM match"); }
-
 function initReviewEvents(){
   if($("reviewHandle")) $("reviewHandle").onclick=()=>{$("reviewOverlay").classList.remove("hidden");$("reviewLogin").classList.remove("hidden");$("reviewEdit").classList.add("hidden");$("reviewDisplay").classList.add("hidden");$("reviewPassword").value="";};
   if($("reviewEnterBtn")) $("reviewEnterBtn").onclick=()=>{ if($("reviewPassword").value!=="2122") return toast("Wrong password"); $("reviewLogin").classList.add("hidden"); $("reviewEdit").classList.remove("hidden"); fillReviewInputs(); };
   if($("reviewCloseBtn")) $("reviewCloseBtn").onclick=()=>$("reviewOverlay").classList.add("hidden");
   if($("reviewBackBtn")) $("reviewBackBtn").onclick=()=>{$("reviewDisplay").classList.add("hidden");$("reviewEdit").classList.remove("hidden");};
-  if($("reviewUpdateBtn")) $("reviewUpdateBtn").onclick=async()=>{ const data={monthlyRevenue:+$("reviewRevenue").value||0,netProfit:+$("reviewProfit").value||0,recurringRevenue:+$("reviewRecurring").value||0,jobsCompleted:+$("reviewJobs").value||0,doorsKnocked:+$("reviewDoors").value||0,closeRate:+$("reviewCloseRate").value||0,updatedAt:Date.now(),updatedBy:currentName}; await setDoc(doc(db,"shared","monthlyIncomeReview"),data,{merge:true}); reviewCache=data; renderReviewDisplay(); $("reviewEdit").classList.add("hidden"); $("reviewDisplay").classList.remove("hidden"); };
+  if($("reviewUpdateBtn")) $("reviewUpdateBtn").onclick=async()=>{ const data={monthlyRevenue:+$("reviewRevenue").value||0,netProfit:+$("reviewProfit").value||0,recurringRevenue:+$("reviewRecurring").value||0,jobsCompleted:+$("reviewJobs").value||0,doorsKnocked:+$("reviewDoors").value||0,closeRate:+$("reviewCloseRate").value||0,updatedAt:Date.now(),updatedBy:currentName}; if(db) await setDoc(doc(db,"shared","monthlyIncomeReview"),data,{merge:true}); reviewCache=data; renderReviewDisplay(); $("reviewEdit").classList.add("hidden"); $("reviewDisplay").classList.remove("hidden"); };
   if($("reviewOverlay")) $("reviewOverlay").addEventListener("click",e=>{if(e.target===$("reviewOverlay"))$("reviewOverlay").classList.add("hidden");});
 }
 function defaultReview(){ return {monthlyRevenue:0,netProfit:0,recurringRevenue:0,jobsCompleted:0,doorsKnocked:0,closeRate:0}; }
 function fillReviewInputs(){ const r={...defaultReview(),...reviewCache}; if($("reviewRevenue")) $("reviewRevenue").value=r.monthlyRevenue; if($("reviewProfit")) $("reviewProfit").value=r.netProfit; if($("reviewRecurring")) $("reviewRecurring").value=r.recurringRevenue; if($("reviewJobs")) $("reviewJobs").value=r.jobsCompleted; if($("reviewDoors")) $("reviewDoors").value=r.doorsKnocked; if($("reviewCloseRate")) $("reviewCloseRate").value=r.closeRate; }
 function renderReviewDisplay(){ const r={...defaultReview(),...reviewCache}; if($("reviewNumbers")) $("reviewNumbers").innerHTML = [["Monthly Revenue",money(r.monthlyRevenue)],["Net Profit",money(r.netProfit)],["Recurring Revenue",money(r.recurringRevenue)],["Jobs Completed",r.jobsCompleted],["Doors Knocked",r.doorsKnocked],["Close Rate",`${r.closeRate}%`]].map(x=>`<div class="reviewMetric"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join(""); }
-
 function toast(msg){ if(!toastEl) return; toastEl.textContent=msg; toastEl.classList.remove("hidden"); clearTimeout(toastEl._t); toastEl._t=setTimeout(()=>toastEl.classList.add("hidden"),1800); }
 function esc(str){ return String(str??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
