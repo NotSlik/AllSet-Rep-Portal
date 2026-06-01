@@ -26,7 +26,7 @@ const LS_ROLE = "allset_rep_role";
 const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
 const $ = (id) => document.getElementById(id);
-const gate = $("gate"), appRoot = $("app"), nicknameInput = $("nicknameInput"), roleSelect = $("roleSelect"), ownerPinWrap = $("ownerPinWrap"), ownerCodeInput = $("ownerCodeInput"), enterBtn = $("enterBtn");
+const gate = $("gate"), appRoot = $("app"), nicknameInput = $("nicknameInput"), roleSelect = $("roleSelect"), enterBtn = $("enterBtn");
 const repNameEl = $("repName"), roleNameEl = $("roleName"), assignedTextEl = $("assignedText"), onlineListEl = $("onlineList");
 const nav = $("nav"), mobileNavBtn = $("mobileNavBtn"), globalSearch = $("globalSearch"), globalSearchBtn = $("globalSearchBtn");
 const toastEl = $("toast"), modalBackdrop = $("modalBackdrop"), modalCard = $("modalCard");
@@ -44,25 +44,47 @@ async function boot(){
   initStaticEvents();
   initScheduleEditor();
   initMap();
-  const savedName = localStorage.getItem(LS_NAME); if(savedName) nicknameInput.value = savedName;
-  const savedRole = localStorage.getItem(LS_ROLE); if(savedRole) roleSelect.value = savedRole;
-  toggleOwnerPin();
+  const savedName = localStorage.getItem(LS_NAME);
+  const savedRole = localStorage.getItem(LS_ROLE) || "rep";
+  if(savedName) nicknameInput.value = savedName;
+  roleSelect.value = savedRole;
   lockApp(true);
   signInAnonymously(auth).catch(err => console.warn("Firebase auth:", err.message));
   onAuthStateChanged(auth, async user => {
-    if(user){ currentUid = user.uid; if(currentName){ try{ await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name:currentName,role:currentRole,updatedAt:serverTimestamp()},{merge:true}); setupPresence(); subscribeAll(); }catch(e){ console.warn("Firebase sync failed"); } } }
+    if(user){
+      currentUid = user.uid;
+      if(savedName){
+        currentName = savedName;
+        currentRole = savedRole;
+        try{
+          await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name:currentName,role:currentRole,updatedAt:serverTimestamp()},{merge:true});
+          setupPresence();
+          subscribeAll();
+        }catch(e){ console.warn("Firebase sync failed"); }
+        completeLogin();
+      } else {
+        showGate();
+      }
+    }
   });
 }
 
 function initStaticEvents(){
   if (enterBtn) enterBtn.addEventListener("click", handleEnter);
   if (nicknameInput) nicknameInput.addEventListener("keydown", e => { if(e.key === "Enter") enterBtn.click(); });
-  if (roleSelect) roleSelect.addEventListener("change", toggleOwnerPin);
-  if (ownerCodeInput) ownerCodeInput.addEventListener("keydown", e => { if(e.key === "Enter") enterBtn.click(); });
   if ($("changeNameBtn")) $("changeNameBtn").addEventListener("click", showGate);
   if (mobileNavBtn) mobileNavBtn.addEventListener("click", () => nav.classList.toggle("open"));
   
-  document.querySelectorAll(".navBtn").forEach(btn => btn.addEventListener("click", () => showPage(btn.dataset.page)));
+  document.querySelectorAll(".navBtn").forEach(btn => btn.addEventListener("click", () => {
+    if(btn.dataset.locked){
+      const code = prompt("Enter access code:");
+      if(code !== "2122"){ toast("Wrong code"); return; }
+      btn.dataset.locked = "";
+      btn.classList.remove("navBtn--locked");
+      btn.textContent = btn.textContent.replace("🔒 ","");
+    }
+    showPage(btn.dataset.page);
+  }));
   document.querySelectorAll("[data-open]").forEach(btn => btn.addEventListener("click", () => openEntityModal(btn.dataset.open)));
   
   if ($("quickLeadBtn")) $("quickLeadBtn").addEventListener("click", () => openEntityModal("leadModal"));
@@ -82,65 +104,31 @@ function initStaticEvents(){
   if ($("searchBtn")) $("searchBtn").addEventListener("click", doSearch);
   if ($("clearSearchBtn")) $("clearSearchBtn").addEventListener("click", clearSearch);
   if ($("searchInput")) $("searchInput").addEventListener("keydown", e => { if(e.key === "Enter") doSearch(); });
-  if ($("clearLogBtn")) $("clearLogBtn").addEventListener("click", () => { if(currentRole !== "owner"){ toast("Only owners can clear the log"); return; } clearRemoteLog(); });
+  if ($("clearLogBtn")) $("clearLogBtn").addEventListener("click", () => { if(currentRole !== "admin"){ toast("Only admins can clear the log"); return; } clearRemoteLog(); });
 }
 
 async function handleEnter(){
   const name = nicknameInput.value.trim();
   if(!name){ toast("Enter your nickname first"); nicknameInput.focus(); return; }
-
   const chosenRole = roleSelect.value || "rep";
-
-  if(chosenRole === "owner"){
-    const pin = (ownerCodeInput?.value || "").trim();
-    if(pin !== "2122"){
-      toast("Wrong owner code");
-      ownerPinWrap?.classList.remove("hidden");
-      ownerCodeInput?.focus();
-      return;
-    }
-  }
-
   currentName = name;
   currentRole = chosenRole;
   localStorage.setItem(LS_NAME, name);
   localStorage.setItem(LS_ROLE, currentRole);
-
   if(!currentUid){
-    toast("Connecting to live CRM...");
+    try{ const cred = await signInAnonymously(auth); currentUid = cred.user.uid; }
+    catch(e){ console.warn("Firebase auth failed", e); }
+  }
+  if(currentUid){
     try{
-      const cred = await signInAnonymously(auth);
-      currentUid = cred.user.uid;
-    }catch(e){
-      toast("Firebase login failed");
-      console.warn("Firebase auth failed", e);
-      return;
-    }
+      await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name,role:currentRole,updatedAt:serverTimestamp()},{merge:true});
+      setupPresence();
+      subscribeAll();
+    }catch(e){ console.warn("Firebase write failed", e); }
   }
-
-  try{
-    await setDoc(doc(db,"reps",currentUid),{
-      uid:currentUid,
-      name,
-      role:currentRole,
-      updatedAt:serverTimestamp()
-    },{merge:true});
-    setupPresence();
-    subscribeAll();
-  }catch(e){
-    console.warn("Firebase write failed", e);
-    toast("Live sync failed — check Firebase rules/connection");
-    return;
-  }
-
   completeLogin();
 }
 
-function toggleOwnerPin(){
-  const isOwner = roleSelect.value === "owner";
-  ownerPinWrap?.classList.toggle("hidden", !isOwner);
-  if(isOwner) setTimeout(() => ownerCodeInput?.focus(), 60);
-}
 
 function completeLogin(){
   if (gate) gate.style.display = "none"; 
@@ -149,7 +137,6 @@ function completeLogin(){
   if (roleNameEl) roleNameEl.textContent = currentRole;
   if (nicknameInput) nicknameInput.value = currentName; 
   if (roleSelect) roleSelect.value = currentRole; 
-  toggleOwnerPin();
   setTimeout(()=>map?.invalidateSize?.(),250); 
   toast(`Welcome, ${currentName} 👋`);
 }
@@ -287,9 +274,15 @@ function renderCustomers(){
 }
 
 function renderTeam(){
-  const rows = Object.entries(repsCache).map(([id,r])=>{ const revenue=Object.values(leadsCache).filter(l=>l.repId===id||l.repName===r.name).reduce((s,l)=>s+Number(l.quote||l.amount||0),0); const sold=Object.values(leadsCache).filter(l=>(l.repId===id||l.repName===r.name)&&l.status==="sold").length; return `<tr><td><strong>${esc(r.name||"Rep")}</strong><br><span class="muted">${esc(r.role||"rep")}</span></td><td>${sold}</td><td>${money(revenue)}</td><td>${money(r.commissionOwed||0)}</td><td>${esc(r.assignedNeighborhoodId||"—")}</td></tr>`; });
-  renderTable("teamTable",["Member","Sales","Revenue","Commission","Assigned"],rows,"No team members online yet.");
+  const rows = Object.entries(repsCache).map(([id,r])=>{ const revenue=Object.values(leadsCache).filter(l=>l.repId===id||l.repName===r.name).reduce((s,l)=>s+Number(l.quote||l.amount||0),0); const sold=Object.values(leadsCache).filter(l=>(l.repId===id||l.repName===r.name)&&l.status==="sold").length; return `<tr><td><strong>${esc(r.name||"Rep")}</strong><br><span class="muted">${esc(r.role||"rep")}</span></td><td>${sold}</td><td>${money(revenue)}</td><td>${money(r.commissionOwed||0)}</td><td>${esc(r.assignedNeighborhoodId||"—")}</td><td><button class="dangerBtn smallBtn" onclick="window.removeTeamMember('${id}','${esc(r.name||"")}')">Remove</button></td></tr>`; });
+  renderTable("teamTable",["Member","Sales","Revenue","Commission","Assigned",""],rows,"No team members online yet.");
 }
+window.removeTeamMember = async (id, name) => {
+  if(!confirm(`Remove ${name} from the team?`)) return;
+  await deleteDoc(doc(db,"reps",id));
+  await addRemoteLog(`🗑 ${currentName} removed team member ${name}`);
+  toast(`${name} removed`);
+};
 
 function renderPayments(){
   const rows = Object.values(paymentsCache).sort((a,b)=>dateVal(b.createdAt)-dateVal(a.createdAt)).map(p=>`<tr><td><strong>${esc(p.customer||"Payment")}</strong><br><span class="muted">${esc(p.note||"")}</span></td><td>${money(p.amount)}</td><td>${esc(p.method||"—")}</td><td><span class="status ${esc(p.status||"unpaid")}">${esc(p.status||"unpaid")}</span></td><td><button class="ghostBtn smallBtn" onclick="window.crmEdit('payment','${p.id}')">Edit</button></td></tr>`);
@@ -301,9 +294,21 @@ function renderEquipment(){
   renderTable("equipmentTable",["Item","Status","Holder","Location",""] ,rows,"No equipment added yet.");
 }
 
+function timeOpts(sel){
+  const opts=[];
+  for(let h=6;h<=22;h++){
+    const ap=h<12?"AM":h===12?"PM":"PM";
+    const h12=h===0?12:h>12?h-12:h;
+    const v0=String(h).padStart(2,"0")+":00";
+    const v30=String(h).padStart(2,"0")+":30";
+    opts.push(`<option value="${v0}"${sel===v0?" selected":""}>${h12}:00 ${ap}</option>`);
+    if(h<22) opts.push(`<option value="${v30}"${sel===v30?" selected":""}>${h12}:30 ${ap}</option>`);
+  }
+  return opts.join("");
+}
 function initScheduleEditor(){
   const wrap = $("mySchedule"); if(!wrap) return;
-  wrap.innerHTML = days.map(d=>`<div class="dayRow" data-day="${d}"><label class="checkWrap"><input type="checkbox" class="schedAvail" checked /> ${d}</label><label>Start<input class="schedStart" type="time" value="09:00"></label><label>End<input class="schedEnd" type="time" value="18:00"></label><label>Busy?<select class="schedBusy"><option value="free">Free</option><option value="busy">Busy</option></select></label></div>`).join("");
+  wrap.innerHTML = days.map(d=>`<div class="dayRow" data-day="${d}"><label class="checkWrap"><input type="checkbox" class="schedAvail" checked /> ${d}</label><label>Start<select class="schedStart">${timeOpts("09:00")}</select></label><label>End<select class="schedEnd">${timeOpts("17:00")}</select></label><label>Busy?<select class="schedBusy"><option value="free">Free</option><option value="busy">Busy</option></select></label></div>`).join("");
 }
 
 async function saveMySchedule(){
@@ -318,7 +323,7 @@ function renderSchedules(){
   if(mine) document.querySelectorAll(".dayRow").forEach(row=>{ const x=mine[row.dataset.day]; if(!x) return; row.querySelector(".schedAvail").checked=!!x.available; row.querySelector(".schedStart").value=x.start||"09:00"; row.querySelector(".schedEnd").value=x.end||"18:00"; row.querySelector(".schedBusy").value=x.status||"free"; });
   const board=$("teamSchedule"); if(!board) return;
   const schedules = Object.values(schedulesCache);
-  board.innerHTML = schedules.length ? schedules.map(s=>`<div class="scheduleUser"><strong>${esc(s.name||"Rep")}</strong><div class="muted">${esc(s.role||"rep")}</div>${days.map(d=>{const x=s.availability?.[d]; return `<div class="row"><span class="label">${d}</span><span class="value">${x?.available?`${x.start||""}-${x.end||""}`:"Busy"}</span></div>`}).join("")}</div>`).join("") : `<div class="card noMargin">No schedules saved yet.</div>`;
+  board.innerHTML = schedules.length ? schedules.map(s=>`<div class="scheduleUser"><strong>${esc(s.name||"Rep")}</strong><div class="muted">${esc(s.role||"rep")}</div>${days.map(d=>{const x=s.availability?.[d]; const fmt=t=>{if(!t)return"";const[hh,mm]=t.split(":").map(Number);const ap=hh<12?"AM":"PM";const h12=hh===0?12:hh>12?hh-12:hh;return `${h12}:${String(mm).padStart(2,"0")} ${ap}`;};return `<div class="row"><span class="label">${d}</span><span class="value">${x?.available?`${fmt(x.start)}-${fmt(x.end)}`:"Busy"}</span></div>`}).join("")}</div>`).join("") : `<div class="card noMargin">No schedules saved yet.</div>`;
 }
 
 function applySettings(){

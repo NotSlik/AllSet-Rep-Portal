@@ -23,13 +23,9 @@
       <label for="roleSelect">Role</label>
       <select id="roleSelect">
         <option value="rep">Rep</option>
-        <option value="owner">Owner/Admin</option>
+        <option value="admin">Admin</option>
         <option value="cleaner">Cleaner</option>
       </select>
-      <div id="ownerCodeWrap" class="hidden">
-        <label for="ownerCodeInput">Owner Code</label>
-        <input id="ownerCodeInput" type="password" placeholder="Enter owner code" inputmode="numeric" autocomplete="off" />
-      </div>
       <button id="enterBtn" type="button">Enter CRM</button>
       <div class="gateHint">Uses the same live Firebase map, dots, neighborhoods, presence, and shared data.</div>
     </div>
@@ -66,18 +62,15 @@
         <button class="navBtn" data-page="schedule">Scheduling</button>
         <button class="navBtn" data-page="customers">Customers</button>
         <button class="navBtn" data-page="team">Team</button>
-        <button class="navBtn" data-page="payments">Payments</button>
-        <button class="navBtn" data-page="equipment">Equipment</button>
-        <button class="navBtn" data-page="admin">Admin</button>
+        <div style="margin:16px 12px 4px;border-top:1px dashed rgba(255,255,255,.12);"></div>
+        <button class="navBtn navBtn--locked" data-page="payments" data-locked="true">🔒 Payments</button>
+        <button class="navBtn navBtn--locked" data-page="equipment" data-locked="true">🔒 Equipment</button>
+        <button class="navBtn navBtn--locked" data-page="admin" data-locked="true">🔒 Admin</button>
         <div class="card navCard">
           <div class="miniTitle">Online</div>
           <div id="onlineList" class="list compact"></div>
         </div>
       </aside>
-      <div id="page-map" class="page">
-  <div id="map" style="height: 500px; width: 100%;"></div>
-</div>
-
       <main class="main">
         <section id="page-dashboard" class="page active">
           <div class="pageHeader">
