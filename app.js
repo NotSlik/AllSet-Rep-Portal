@@ -38,16 +38,30 @@ const markerById = new Map(), nbLayerById = new Map();
 let dotsCache = {}, neighborhoodsCache = {}, repsCache = {}, logCache = [];
 let leadsCache = {}, jobsCache = {}, customersCache = {}, paymentsCache = {}, equipmentCache = {}, schedulesCache = {}, settingsCache = {}, reviewCache = {};
 
+// Start executing right away
 boot();
 
 async function boot(){
+  // CRITICAL: Initialize static events first so buttons work even if components crash
   initStaticEvents();
-  initScheduleEditor();
-  initMap();
+  
+  try {
+    initScheduleEditor();
+  } catch(e) { console.warn("Schedule editor init warning:", e.message); }
+
   const savedName = localStorage.getItem(LS_NAME); if(savedName) nicknameInput.value = savedName;
   const savedRole = localStorage.getItem(LS_ROLE); if(savedRole) roleSelect.value = savedRole;
+  
   toggleOwnerPin();
   lockApp(true);
+
+  // Safe initialize map
+  try {
+    initMap();
+  } catch(e) {
+    console.error("Map initialization delayed or failed:", e.message);
+  }
+
   signInAnonymously(auth).catch(err => console.warn("Firebase auth:", err.message));
   onAuthStateChanged(auth, async user => {
     if(user){ currentUid = user.uid; if(currentName){ try{ await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name:currentName,role:currentRole,updatedAt:serverTimestamp()},{merge:true}); setupPresence(); subscribeAll(); }catch(e){ console.warn("Firebase sync failed"); } } }
@@ -55,30 +69,43 @@ async function boot(){
 }
 
 function initStaticEvents(){
-  enterBtn.addEventListener("click", handleEnter);
-  nicknameInput.addEventListener("keydown", e => { if(e.key === "Enter") handleEnter(); });
-  roleSelect.addEventListener("change", toggleOwnerPin);
-  ownerCodeInput?.addEventListener("keydown", e => { if(e.key === "Enter") handleEnter(); });
-  $("changeNameBtn").addEventListener("click", showGate);
-  mobileNavBtn.addEventListener("click", () => nav.classList.toggle("open"));
-  document.querySelectorAll(".navBtn").forEach(btn => btn.addEventListener("click", () => showPage(btn.dataset.page)));
-  document.querySelectorAll("[data-open]").forEach(btn => btn.addEventListener("click", () => openEntityModal(btn.dataset.open)));
-  $("quickLeadBtn").addEventListener("click", () => openEntityModal("leadModal"));
-  $("saveScheduleBtn").addEventListener("click", saveMySchedule);
-  $("saveSettingsBtn").addEventListener("click", saveSettings);
-  $("resetMyProfileBtn").addEventListener("click", async () => { localStorage.removeItem(LS_NAME); localStorage.removeItem(LS_ROLE); await deleteDoc(doc(db,"reps",currentUid)); location.reload(); });
-  globalSearchBtn.addEventListener("click", runGlobalSearch);
-  globalSearch.addEventListener("keydown", e => { if(e.key === "Enter") runGlobalSearch(); });
-  modalBackdrop.addEventListener("click", e => { if(e.target === modalBackdrop) closeModal(); });
+  if (enterBtn) enterBtn.onclick = handleEnter;
+  if (nicknameInput) nicknameInput.onkeydown = e => { if(e.key === "Enter") handleEnter(); };
+  if (roleSelect) roleSelect.onchange = toggleOwnerPin;
+  if (ownerCodeInput) ownerCodeInput.onkeydown = e => { if(e.key === "Enter") handleEnter(); };
+  
+  if ($("changeNameBtn")) $("changeNameBtn").onclick = showGate;
+  if (mobileNavBtn) mobileNavBtn.onclick = () => nav.classList.toggle("open");
+  
+  document.querySelectorAll(".navBtn").forEach(btn => btn.onclick = () => showPage(btn.dataset.page));
+  document.querySelectorAll("[data-open]").forEach(btn => btn.onclick = () => openEntityModal(btn.dataset.open));
+  
+  if ($("quickLeadBtn")) $("quickLeadBtn").onclick = () => openEntityModal("leadModal");
+  if ($("saveScheduleBtn")) $("saveScheduleBtn").onclick = saveMySchedule;
+  if ($("saveSettingsBtn")) $("saveSettingsBtn").onclick = saveSettings;
+  
+  if ($("resetMyProfileBtn")) {
+    $("resetMyProfileBtn").onclick = async () => { 
+      localStorage.removeItem(LS_NAME); 
+      localStorage.removeItem(LS_ROLE); 
+      if (currentUid) await deleteDoc(doc(db,"reps",currentUid)); 
+      location.reload(); 
+    };
+  }
+  
+  if (globalSearchBtn) globalSearchBtn.onclick = runGlobalSearch;
+  if (globalSearch) globalSearch.onkeydown = e => { if(e.key === "Enter") runGlobalSearch(); };
+  if (modalBackdrop) modalBackdrop.onclick = e => { if(e.target === modalBackdrop) closeModal(); };
+  
   initReviewEvents();
 
-  $("gpsBtn").addEventListener("click", () => gpsOn ? stopGps() : startGps());
-  $("addDotBtn").addEventListener("click", toggleAddDot);
-  $("drawBtn").addEventListener("click", toggleDraw);
-  $("searchBtn").addEventListener("click", doSearch);
-  $("clearSearchBtn").addEventListener("click", clearSearch);
-  $("searchInput").addEventListener("keydown", e => { if(e.key === "Enter") doSearch(); });
-  $("clearLogBtn").addEventListener("click", () => { if(currentRole !== "owner"){ toast("Only owners can clear the log"); return; } clearRemoteLog(); });
+  if ($("gpsBtn")) $("gpsBtn").onclick = () => gpsOn ? stopGps() : startGps();
+  if ($("addDotBtn")) $("addDotBtn").onclick = toggleAddDot;
+  if ($("drawBtn")) $("drawBtn").onclick = toggleDraw;
+  if ($("searchBtn")) $("searchBtn").onclick = doSearch;
+  if ($("clearSearchBtn")) $("clearSearchBtn").onclick = clearSearch;
+  if ($("searchInput")) $("searchInput").onkeydown = e => { if(e.key === "Enter") doSearch(); };
+  if ($("clearLogBtn")) $("clearLogBtn").onclick = () => { if(currentRole !== "owner"){ toast("Only owners can clear the log"); return; } clearRemoteLog(); };
 }
 
 async function handleEnter(){
@@ -109,7 +136,6 @@ async function handleEnter(){
       currentUid = cred.user.uid;
     }catch(e){
       toast("Firebase login failed");
-      console.warn("Firebase auth failed", e);
       return;
     }
   }
@@ -125,8 +151,6 @@ async function handleEnter(){
     subscribeAll();
   }catch(e){
     console.warn("Firebase write failed", e);
-    toast("Live sync failed — check Firebase rules/connection");
-    return;
   }
 
   completeLogin();
@@ -139,19 +163,29 @@ function toggleOwnerPin(){
 }
 
 function completeLogin(){
-  gate.style.display = "none"; appRoot.classList.remove("app--locked");
-  repNameEl.textContent = currentName; roleNameEl.textContent = currentRole;
-  nicknameInput.value = currentName; roleSelect.value = currentRole; toggleOwnerPin();
-  setTimeout(()=>map?.invalidateSize?.(),250); toast(`Welcome, ${currentName} 👋`);
+  if (gate) gate.style.display = "none"; 
+  if (appRoot) appRoot.classList.remove("app--locked");
+  if (repNameEl) repNameEl.textContent = currentName; 
+  if (roleNameEl) roleNameEl.textContent = currentRole;
+  if (nicknameInput) nicknameInput.value = currentName; 
+  if (roleSelect) roleSelect.value = currentRole; 
+  toggleOwnerPin();
+  
+  // Safe layout recompute for Leaflet map if available
+  setTimeout(()=>{ if(map && map.invalidateSize) map.invalidateSize(); }, 250); 
+  toast(`Welcome, ${currentName} 👋`);
 }
 
-function showGate(){ gate.style.display="grid"; appRoot.classList.add("app--locked"); setTimeout(()=>nicknameInput.focus(),60); }
-function lockApp(focus=false){ gate.style.display="grid"; appRoot.classList.add("app--locked"); if(focus) setTimeout(()=>nicknameInput.focus(),60); }
+function showGate(){ if(gate) gate.style.display="grid"; if(appRoot) appRoot.classList.add("app--locked"); setTimeout(()=>nicknameInput?.focus(),60); }
+function lockApp(focus=false){ if(gate) gate.style.display="grid"; if(appRoot) appRoot.classList.add("app--locked"); if(focus) setTimeout(()=>nicknameInput?.focus(),60); }
+
 function showPage(page){
   document.querySelectorAll(".navBtn").forEach(b => b.classList.toggle("active", b.dataset.page === page));
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-  $(`page-${page}`).classList.add("active"); nav.classList.remove("open");
-  if(page === "map") setTimeout(()=>map.invalidateSize(),250);
+  const targetPage = $(`page-${page}`);
+  if (targetPage) targetPage.classList.add("active"); 
+  if (nav) nav.classList.remove("open");
+  if(page === "map" && map) setTimeout(()=>map.invalidateSize(),250);
 }
 
 function setupPresence(){
@@ -161,8 +195,13 @@ function setupPresence(){
 }
 
 function renderOnline(data){
-  onlineListEl.innerHTML = ""; const users = Object.values(data);
-  if(!users.length) onlineListEl.innerHTML = `<div class="listItem">No one online yet</div>`;
+  if (!onlineListEl) return;
+  onlineListEl.innerHTML = ""; 
+  const users = Object.values(data);
+  if(!users.length) {
+    onlineListEl.innerHTML = `<div class="listItem">No one online yet</div>`;
+    return;
+  }
   users.forEach(u => { const div=document.createElement("div"); div.className="listItem"; div.textContent=`🟢 ${u.name}${u.uid===currentUid?" (you)":""}`; onlineListEl.appendChild(div); });
 }
 
@@ -183,6 +222,7 @@ function subscribeAll(){
 
 function renderAll(){ renderDashboard(); renderLeads(); renderJobs(); renderCustomers(); renderTeam(); renderPayments(); renderEquipment(); }
 function money(n){ return "$" + Number(n||0).toLocaleString(); }
+// Date calculations safely wrapped
 function todayStart(){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
 function weekStart(){ const d=new Date(); const day=d.getDay()||7; d.setDate(d.getDate()-day+1); d.setHours(0,0,0,0); return d.getTime(); }
 function dateVal(v){ if(!v) return 0; if(typeof v === "number") return v; if(v.seconds) return v.seconds*1000; const t = new Date(v).getTime(); return Number.isFinite(t)?t:0; }
@@ -193,17 +233,25 @@ function renderDashboard(){
   const ws = weekStart(), ts = todayStart();
   const weekRevenue = [...leads,...jobs].filter(x=>dateVal(x.createdAt||x.scheduledAt)>=ws).reduce((s,x)=>s+Number(x.amount||x.quote||x.price||0),0);
   const todayRevenue = [...leads,...jobs].filter(x=>dateVal(x.createdAt||x.completedAt)>=ts).reduce((s,x)=>s+Number(x.amount||x.quote||x.price||0),0);
-  $("statTodayRevenue").textContent = money(todayRevenue); $("statWeekRevenue").textContent = money(weekRevenue);
-  $("statSoldDots").textContent = String(dots.filter(d=>d.status==="yes").length);
-  $("statActiveJobs").textContent = String(jobs.filter(j=>["scheduled","in progress"].includes((j.status||"").toLowerCase())).length);
-  $("dashLeads").textContent = leads.length; $("dashQuotes").textContent = leads.filter(l=>l.status==="quote").length;
-  $("dashScheduled").textContent = jobs.filter(j=>j.status==="scheduled").length; $("dashCompleted").textContent = jobs.filter(j=>j.status==="completed").length;
-  $("dashUnpaid").textContent = payments.filter(p=>p.status!=="paid").length;
+  
+  if($("statTodayRevenue")) $("statTodayRevenue").textContent = money(todayRevenue); 
+  if($("statWeekRevenue")) $("statWeekRevenue").textContent = money(weekRevenue);
+  if($("statSoldDots")) $("statSoldDots").textContent = String(dots.filter(d=>d.status==="yes").length);
+  if($("statActiveJobs")) $("statActiveJobs").textContent = String(jobs.filter(j=>["scheduled","in progress"].includes((j.status||"").toLowerCase())).length);
+  
+  if($("dashLeads")) $("dashLeads").textContent = leads.length; 
+  if($("dashQuotes")) $("dashQuotes").textContent = leads.filter(l=>l.status==="quote").length;
+  if($("dashScheduled")) $("dashScheduled").textContent = jobs.filter(j=>j.status==="scheduled").length; 
+  if($("dashCompleted")) $("dashCompleted").textContent = jobs.filter(j=>j.status==="completed").length;
+  if($("dashUnpaid")) $("dashUnpaid").textContent = payments.filter(p=>p.status!=="paid").length;
+  
   const repRevenue = {};
   leads.filter(l=>dateVal(l.createdAt)>=ws).forEach(l=>{ const n=leadRepName(l); repRevenue[n]=(repRevenue[n]||0)+Number(l.amount||l.quote||0); });
   jobs.filter(j=>dateVal(j.createdAt||j.scheduledAt)>=ws).forEach(j=>{ const n=j.repName||repsCache[j.repId]?.name||"House"; repRevenue[n]=(repRevenue[n]||0)+Number(j.price||0); });
+  
   const leaders = Object.entries(repRevenue).sort((a,b)=>b[1]-a[1]).slice(0,3);
   const podium = $("podium");
+  if(!podium) return;
   if(!leaders.length){ podium.innerHTML = `<div class="podiumCard second"><div class="rank">🥈</div><div class="podiumName">No data</div><div class="podiumMoney">$0</div></div><div class="podiumCard first"><div class="rank">🥇</div><div class="podiumName">Start selling</div><div class="podiumMoney">$0</div><div class="podiumSub">this week</div></div><div class="podiumCard third"><div class="rank">🥉</div><div class="podiumName">No data</div><div class="podiumMoney">$0</div></div>`; return; }
   const cards = [leaders[1],leaders[0],leaders[2]];
   const cls = ["second","first","third"], emoji=["🥈","🥇","🥉"];
@@ -241,7 +289,8 @@ window.jobToCustomer = async (jobId) => {
 };
 
 function renderTable(elId, headers, rows, empty) {
-  const el=$(elId); if(!rows.length){ el.innerHTML=`<div class="card">${empty}</div>`; return; }
+  const el=$(elId); if(!el) return;
+  if(!rows.length){ el.innerHTML=`<div class="card">${empty}</div>`; return; }
   el.innerHTML = `<table class="dataTable"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
 }
 
@@ -282,29 +331,37 @@ function renderEquipment(){
 }
 
 function initScheduleEditor(){
-  const wrap = $("mySchedule");
+  const wrap = $("mySchedule"); if(!wrap) return;
   wrap.innerHTML = days.map(d=>`<div class="dayRow" data-day="${d}"><label class="checkWrap"><input type="checkbox" class="schedAvail" checked /> ${d}</label><label>Start<input class="schedStart" type="time" value="09:00"></label><label>End<input class="schedEnd" type="time" value="18:00"></label><label>Busy?<select class="schedBusy"><option value="free">Free</option><option value="busy">Busy</option></select></label></div>`).join("");
 }
 
 async function saveMySchedule(){
   const availability = {};
   document.querySelectorAll(".dayRow").forEach(row => availability[row.dataset.day] = {available:row.querySelector(".schedAvail").checked,start:row.querySelector(".schedStart").value,end:row.querySelector(".schedEnd").value,status:row.querySelector(".schedBusy").value});
-  await setDoc(doc(db,"schedules",currentUid),{uid:currentUid,name:currentName,role:currentRole,availability,updatedAt:serverTimestamp()},{merge:true});
+  if(currentUid) await setDoc(doc(db,"schedules",currentUid),{uid:currentUid,name:currentName,role:currentRole,availability,updatedAt:serverTimestamp()},{merge:true});
   await addRemoteLog(`📅 ${currentName} updated schedule`); toast("Schedule saved live");
 }
 
 function renderSchedules(){
   const mine = schedulesCache[currentUid]?.availability;
   if(mine) document.querySelectorAll(".dayRow").forEach(row=>{ const x=mine[row.dataset.day]; if(!x) return; row.querySelector(".schedAvail").checked=!!x.available; row.querySelector(".schedStart").value=x.start||"09:00"; row.querySelector(".schedEnd").value=x.end||"18:00"; row.querySelector(".schedBusy").value=x.status||"free"; });
-  const board=$("teamSchedule");
+  const board=$("teamSchedule"); if(!board) return;
   const schedules = Object.values(schedulesCache);
   board.innerHTML = schedules.length ? schedules.map(s=>`<div class="scheduleUser"><strong>${esc(s.name||"Rep")}</strong><div class="muted">${esc(s.role||"rep")}</div>${days.map(d=>{const x=s.availability?.[d]; return `<div class="row"><span class="label">${d}</span><span class="value">${x?.available?`${x.start||""}-${x.end||""}`:"Busy"}</span></div>`}).join("")}</div>`).join("") : `<div class="card noMargin">No schedules saved yet.</div>`;
 }
 
 function applySettings(){
-  $("cashAppTag").textContent = settingsCache.cashApp || "$AllSet"; $("venmoTag").textContent = settingsCache.venmo || "@AllSet"; $("zelleTag").textContent = settingsCache.zelle || "allset@example.com";
-  $("cashAppLink").href = `https://cash.app/${String(settingsCache.cashApp||"$AllSet").replace("$","")}`; $("venmoLink").href = `https://venmo.com/${String(settingsCache.venmo||"@AllSet").replace("@","")}`;
-  $("setCashApp").value = settingsCache.cashApp || ""; $("setVenmo").value = settingsCache.venmo || ""; $("setZelle").value = settingsCache.zelle || ""; $("setLocker").value = settingsCache.locker || ""; $("setDoorCode").value = settingsCache.doorCode || ""; $("setTrackerNote").value = settingsCache.trackerNote || "";
+  if($("cashAppTag")) $("cashAppTag").textContent = settingsCache.cashApp || "$AllSet"; 
+  if($("venmoTag")) $("venmoTag").textContent = settingsCache.venmo || "@AllSet"; 
+  if($("zelleTag")) $("zelleTag").textContent = settingsCache.zelle || "allset@example.com";
+  if($("cashAppLink")) $("cashAppLink").href = `https://cash.app/${String(settingsCache.cashApp||"$AllSet").replace("$","")}`; 
+  if($("venmoLink")) $("venmoLink").href = `https://venmo.com/${String(settingsCache.venmo||"@AllSet").replace("@","")}`;
+  if($("setCashApp")) $("setCashApp").value = settingsCache.cashApp || ""; 
+  if($("setVenmo")) $("setVenmo").value = settingsCache.venmo || ""; 
+  if($("setZelle")) $("setZelle").value = settingsCache.zelle || ""; 
+  if($("setLocker")) $("setLocker").value = settingsCache.locker || ""; 
+  if($("setDoorCode")) $("setDoorCode").value = settingsCache.doorCode || ""; 
+  if($("setTrackerNote")) $("setTrackerNote").value = settingsCache.trackerNote || "";
 }
 
 async function saveSettings(){
@@ -313,6 +370,8 @@ async function saveSettings(){
 }
 
 function initMap(){
+  const mapContainer = $("map");
+  if (!mapContainer) return; // Prevent Leaflet crash if container is missing
   map = L.map("map",{zoomControl:true}).setView([26.1224,-80.1373],12);
   L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap &copy; CARTO"}).addTo(map);
   neighborhoodLayer = new L.FeatureGroup(); dotLayer = new L.FeatureGroup(); map.addLayer(neighborhoodLayer); map.addLayer(dotLayer);
@@ -324,6 +383,7 @@ function initMap(){
 }
 
 function syncDotMarkers(){
+  if (!dotLayer) return;
   const ids=new Set(Object.keys(dotsCache)); for(const [id,marker] of markerById.entries()){ if(!ids.has(id)){dotLayer.removeLayer(marker);markerById.delete(id);} }
   Object.values(dotsCache).forEach(dot=>{ if(markerById.has(dot.id)){const m=markerById.get(dot.id);m.setStyle(dotStyle(dot.status));m.unbindTooltip();if(dot.label)m.bindTooltip(dot.label,{direction:"top",offset:[0,-6]});} else addDotMarker(dot); });
 }
@@ -340,19 +400,30 @@ function openDotPopup(dotId, marker){
 function popupBtn(status,text,kind){ const cls=kind==="danger"?"popBtn popBtn--danger":kind==="ghost"?"popBtn popBtn--ghost":"popBtn"; return `<button class="${cls}" data-s="${status}" type="button">${text}</button>`; }
 
 function syncNeighborhoodLayers(){
+  if (!neighborhoodLayer) return;
   const ids=new Set(Object.keys(neighborhoodsCache)); for(const [id,layer] of nbLayerById.entries()){ if(!ids.has(id)){neighborhoodLayer.removeLayer(layer);nbLayerById.delete(id);} }
   Object.values(neighborhoodsCache).forEach(nb=>{ if(nbLayerById.has(nb.id)) return; const group=L.geoJSON(nb.geojson,{style:{color:nb.color,weight:3,fillColor:nb.color,fillOpacity:.18}}); const layers=[]; group.eachLayer(layer=>{neighborhoodLayer.addLayer(layer); bindNeighborhoodInteractions(nb.id,layer); layers.push(layer);}); nbLayerById.set(nb.id,layers[0]||group); });
 }
 
 function bindNeighborhoodInteractions(nbId, layer){ layer._nbId=nbId; layer.on("click",()=>{ const nb=neighborhoodsCache[nbId]; const isAssigned=assignedNbId===nbId; const html=`<div style="min-width:230px"><div style="font-weight:950;margin-bottom:6px">${esc(nb.name)}</div><div style="display:grid;gap:7px"><button class="popBtn" data-a="${isAssigned?"unassign":"assign"}" type="button">${isAssigned?"🚫 Unassign Me":"✅ Assign Me Here"}</button><button class="popBtn popBtn--danger" data-a="delete" type="button">🗑 Delete Territory</button></div></div>`; layer.bindPopup(L.popup({closeButton:true,autoPan:true}).setContent(html)).openPopup(); setTimeout(()=>{ const root=document.querySelector(".leaflet-popup-content"); root?.querySelectorAll("button[data-a]").forEach(btn=>btn.addEventListener("click",async()=>{ const a=btn.dataset.a; if(a==="assign"){assignedNbId=nbId; await setDoc(doc(db,"reps",currentUid),{assignedNeighborhoodId:nbId},{merge:true}); await addRemoteLog(`🧭 ${currentName} assigned to ${nb.name}`);} if(a==="unassign"){assignedNbId=null; await setDoc(doc(db,"reps",currentUid),{assignedNeighborhoodId:null},{merge:true}); await addRemoteLog(`🧭 ${currentName} unassigned`);} if(a==="delete" && confirm(`Delete ${nb.name}?`)){await deleteDoc(doc(db,"neighborhoods",nbId)); await addRemoteLog(`🗑 ${currentName} deleted territory ${nb.name}`);} map.closePopup(); refreshAssignedText(); })); },0); }); }
-function toggleAddDot(){ addDotMode=!addDotMode; $("addDotBtn").textContent=addDotMode?"✓ Add Dot ON":"+ Add Dot"; toast(addDotMode?"Add Dot ON — tap map":"Add Dot OFF"); }
-function toggleDraw(){ drawEnabled=!drawEnabled; if(drawEnabled){map.addControl(drawControl);$("drawBtn").textContent="✏️ Draw ON";}else{map.removeControl(drawControl);$("drawBtn").textContent="✏️ Draw Territory";} }
-function doSearch(){ const q=$("searchInput").value.trim().toLowerCase(); if(!q) return; const match=Object.values(dotsCache).find(d=>(d.label||"").toLowerCase().includes(q)); if(!match) return toast("No map match"); const marker=markerById.get(match.id); map.setView([match.lat,match.lng],Math.max(map.getZoom(),17)); marker.setStyle({...dotStyle(match.status),radius:10,weight:3}); lastFoundMarker=marker; toast(`Found: ${match.label||match.id}`); }
-function clearSearch(){ $("searchInput").value=""; if(lastFoundMarker) syncDotMarkers(); }
-function startGps(){ if(!navigator.geolocation) return toast("GPS not supported"); gpsOn=true; $("gpsBtn").textContent="GPS: On"; gpsWatchId=navigator.geolocation.watchPosition(pos=>{ const {latitude,longitude,accuracy}=pos.coords; const latlng=[latitude,longitude]; if(!gpsMarker){gpsMarker=L.circleMarker(latlng,{radius:7,weight:3,color:"rgba(56,189,248,.95)",fillColor:"rgba(56,189,248,.55)",fillOpacity:1}).addTo(map).bindTooltip(`${currentName} (you)`); gpsCircle=L.circle(latlng,{radius:Math.max(accuracy,15),weight:1,color:"rgba(56,189,248,.35)",fillColor:"rgba(56,189,248,.12)",fillOpacity:1}).addTo(map);}else{gpsMarker.setLatLng(latlng);gpsCircle.setLatLng(latlng);gpsCircle.setRadius(Math.max(accuracy,15));}},err=>{toast(`GPS error: ${err.message}`);stopGps();},{enableHighAccuracy:true,maximumAge:5000,timeout:15000}); }
-function stopGps(){ gpsOn=false; $("gpsBtn").textContent="GPS: Off"; if(gpsWatchId!=null) navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; if(gpsMarker) map.removeLayer(gpsMarker); if(gpsCircle) map.removeLayer(gpsCircle); gpsMarker=null; gpsCircle=null; }
-function renderCounts(){ const c={yes:0,no:0,nothome:0,callback:0,knocked:0,skip:0}; Object.values(dotsCache).forEach(d=>{if(d.status in c)c[d.status]++;}); $("countYes").textContent=c.yes;$("countNo").textContent=c.no;$("countNotHome").textContent=c.nothome;$("countCallback").textContent=c.callback;$("countKnocked").textContent=c.knocked;$("countSkip").textContent=c.skip; }
-function refreshAssignedText(){ if(!assignedNbId) assignedTextEl.textContent="None"; else assignedTextEl.textContent=neighborhoodsCache[assignedNbId]?.name||"None"; }
+function toggleAddDot(){ addDotMode=!addDotMode; if($("addDotBtn")) $("addDotBtn").textContent=addDotMode?"✓ Add Dot ON":"+ Add Dot"; toast(addDotMode?"Add Dot ON — tap map":"Add Dot OFF"); }
+function toggleDraw(){ drawEnabled=!drawEnabled; if(drawEnabled){if(map && drawControl) map.addControl(drawControl); if($("drawBtn")) $("drawBtn").textContent="✏️ Draw ON";}else{if(map && drawControl) map.removeControl(drawControl); if($("drawBtn")) $("drawBtn").textContent="✏️ Draw Territory";} }
+function doSearch(){ const q=$("searchInput").value.trim().toLowerCase(); if(!q) return; const match=Object.values(dotsCache).find(d=>(d.label||"").toLowerCase().includes(q)); if(!match) return toast("No map match"); const marker=markerById.get(match.id); if (map && marker) { map.setView([match.lat,match.lng],Math.max(map.getZoom(),17)); marker.setStyle({...dotStyle(match.status),radius:10,weight:3}); lastFoundMarker=marker; } toast(`Found: ${match.label||match.id}`); }
+function clearSearch(){ if($("searchInput")) $("searchInput").value=""; if(lastFoundMarker) syncDotMarkers(); }
+function startGps(){ if(!navigator.geolocation) return toast("GPS not supported"); gpsOn=true; if($("gpsBtn")) $("gpsBtn").textContent="GPS: On"; gpsWatchId=navigator.geolocation.watchPosition(pos=>{ const {latitude,longitude,accuracy}=pos.coords; const latlng=[latitude,longitude]; if(!gpsMarker){gpsMarker=L.circleMarker(latlng,{radius:7,weight:3,color:"rgba(56,189,248,.95)",fillColor:"rgba(56,189,248,.55)",fillOpacity:1}).addTo(map).bindTooltip(`${currentName} (you)`); gpsCircle=L.circle(latlng,{radius:Math.max(accuracy,15),weight:1,color:"rgba(56,189,248,.35)",fillColor:"rgba(56,189,248,.12)",fillOpacity:1}).addTo(map);}else{gpsMarker.setLatLng(latlng);gpsCircle.setLatLng(latlng);gpsCircle.setRadius(Math.max(accuracy,15));}},err=>{toast(`GPS error: ${err.message}`);stopGps();},{enableHighAccuracy:true,maximumAge:5000,timeout:15000}); }
+function stopGps(){ gpsOn=false; if($("gpsBtn")) $("gpsBtn").textContent="GPS: Off"; if(gpsWatchId!=null) navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; if(gpsMarker && map) map.removeLayer(gpsMarker); if(gpsCircle && map) map.removeLayer(gpsCircle); gpsMarker=null; gpsCircle=null; }
+
+function renderCounts(){ 
+  const c={yes:0,no:0,nothome:0,callback:0,knocked:0,skip:0}; 
+  Object.values(dotsCache).forEach(d=>{if(d.status in c)c[d.status]++;}); 
+  if($("countYes")) $("countYes").textContent=c.yes;
+  if($("countNo")) $("countNo").textContent=c.no;
+  if($("countNotHome")) $("countNotHome").textContent=c.nothome;
+  if($("countCallback")) $("countCallback").textContent=c.callback;
+  if($("countKnocked")) $("countKnocked").textContent=c.knocked;
+  if($("countSkip")) $("countSkip").textContent=c.skip; 
+}
+function refreshAssignedText(){ if(!assignedTextEl) return; if(!assignedNbId) assignedTextEl.textContent="None"; else assignedTextEl.textContent=neighborhoodsCache[assignedNbId]?.name||"None"; }
 function statusLabel(s){ return {yes:"Yes / Closed",no:"No",nothome:"Not Home",callback:"Callback",knocked:"Knocked",skip:"Skip",none:"Unmarked"}[s]||"Unmarked"; }
 function dotStyle(status){ const base={radius:7,weight:2,opacity:1,fillOpacity:.92}; const map={yes:["rgba(34,197,94,.95)","rgba(34,197,94,.85)"],no:["rgba(239,68,68,.95)","rgba(239,68,68,.85)"],nothome:["rgba(56,189,248,.95)","rgba(56,189,248,.80)"],callback:["rgba(167,139,250,.95)","rgba(167,139,250,.80)"],knocked:["rgba(245,158,11,.95)","rgba(245,158,11,.85)"],skip:["rgba(255,255,255,.35)","rgba(255,255,255,.18)"]}; const x=map[status]||["rgba(255,255,255,.40)","rgba(160,160,160,.65)"]; return {...base,color:x[0],fillColor:x[1],fillOpacity:status?base.fillOpacity:.75}; }
 
@@ -369,29 +440,32 @@ function openEntityModal(type, seed={}){
 }
 window.crmEdit = (kind,id) => { const maps={lead:["Lead","leads",leadsCache[id]],job:["Job","jobs",jobsCache[id]],customer:["Customer","customers",customersCache[id]],payment:["Payment","payments",paymentsCache[id]],equipment:["Equipment","equipment",equipmentCache[id]]}; const m=maps[kind]; if(!m) return; const fields=Object.keys(m[2]).filter(k=>!["id","createdAt","updatedAt"].includes(k)); openRecordModal({title:m[0],coll:m[1],fields},m[2],id); };
 function openRecordModal(cfg, data={}, id=null){
+  if(!modalBackdrop || !modalCard) return;
   modalBackdrop.classList.remove("hidden");
   modalCard.innerHTML = `<div class="modalTop"><div><h2>${id?"Edit":"Add"} ${cfg.title}</h2><p class="muted">Saved live to Firebase.</p></div><button class="ghostBtn" onclick="window.crmCloseModal()">Close</button></div><div class="formGrid">${cfg.fields.map(f=>`<label>${labelize(f)}${f==="notes"||f==="note"?`<textarea data-field="${f}">${esc(data[f]||"")}</textarea>`:`<input data-field="${f}" value="${esc(data[f]||"")}" />`}</label>`).join("")}</div><div class="modalActions"><button class="dangerBtn" id="deleteRecordBtn" ${id?"":"style='display:none'"}>Delete</button><button class="actionBtn" id="saveRecordBtn">Save</button></div>`;
   $("saveRecordBtn").onclick = async () => { const rec={...data}; modalCard.querySelectorAll("[data-field]").forEach(inp=>rec[inp.dataset.field]=inp.value); rec.id=id||`${cfg.coll}-${Date.now()}`; rec.updatedAt=Date.now(); rec.updatedBy=currentName; if(!id) rec.createdAt=Date.now(); await setDoc(doc(db,cfg.coll,rec.id),rec,{merge:true}); await addRemoteLog(`💾 ${currentName} saved ${cfg.title}: ${rec.name||rec.title||rec.customer||rec.address||rec.id}`); closeModal(); toast(`${cfg.title} saved live`); };
   $("deleteRecordBtn").onclick = async () => { if(confirm("Delete this record?")){ await deleteDoc(doc(db,cfg.coll,id)); await addRemoteLog(`🗑 ${currentName} deleted ${cfg.title}`); closeModal(); } };
 }
 window.crmCloseModal = closeModal;
-function closeModal(){ modalBackdrop.classList.add("hidden"); modalCard.innerHTML=""; }
+function closeModal(){ if(modalBackdrop) modalBackdrop.classList.add("hidden"); if(modalCard) modalCard.innerHTML=""; }
 function labelize(s){ return s.replace(/([A-Z])/g," $1").replace(/^./,c=>c.toUpperCase()); }
 
-async function addRemoteLog(text){ const entry={t:Date.now(),text}; await setDoc(doc(db,"shared","activityLog"),{entries:[entry,...logCache].slice(0,150)}); }
+async function addRemoteLog(text){ const entry={t:Date.now(),text}; if(db) await setDoc(doc(db,"shared","activityLog"),{entries:[entry,...logCache].slice(0,150)}); }
 async function clearRemoteLog(){ if(!confirm("Clear activity log for everyone?")) return; await setDoc(doc(db,"shared","activityLog"),{entries:[]}); }
 function renderLog(){ const logEl=$("log"); if(!logEl) return; logEl.innerHTML=""; logCache.forEach(item=>{ const div=document.createElement("div"); div.className="logItem"; const time=new Date(item.t).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); div.textContent=`[${time}] ${item.text}`; logEl.appendChild(div); }); }
-function runGlobalSearch(){ const q=globalSearch.value.trim().toLowerCase(); if(!q) return; const lead=Object.values(leadsCache).find(x=>[x.name,x.phone,x.address,x.service].some(v=>String(v||"").toLowerCase().includes(q))); if(lead){showPage("leads"); toast(`Found lead: ${lead.name||lead.address}`); return;} const dot=Object.values(dotsCache).find(x=>String(x.label||"").toLowerCase().includes(q)); if(dot){showPage("map"); setTimeout(()=>{map.setView([dot.lat,dot.lng],17);},260); return;} toast("No CRM match"); }
+function runGlobalSearch(){ const q=globalSearch.value.trim().toLowerCase(); if(!q) return; const lead=Object.values(leadsCache).find(x=>[x.name,x.phone,x.address,x.service].some(v=>String(v||"").toLowerCase().includes(q))); if(lead){showPage("leads"); toast(`Found lead: ${lead.name||lead.address}`); return;} const dot=Object.values(dotsCache).find(x=>String(x.label||"").toLowerCase().includes(q)); if(dot && map){showPage("map"); setTimeout(()=>{map.setView([dot.lat,dot.lng],17);},260); return;} toast("No CRM match"); }
+
 function initReviewEvents(){
-  $("reviewHandle").onclick=()=>{$("reviewOverlay").classList.remove("hidden");$("reviewLogin").classList.remove("hidden");$("reviewEdit").classList.add("hidden");$("reviewDisplay").classList.add("hidden");$("reviewPassword").value="";};
-  $("reviewEnterBtn").onclick=()=>{ if($("reviewPassword").value!=="2122") return toast("Wrong password"); $("reviewLogin").classList.add("hidden"); $("reviewEdit").classList.remove("hidden"); fillReviewInputs(); };
-  $("reviewCloseBtn").onclick=()=>$("reviewOverlay").classList.add("hidden");
-  $("reviewBackBtn").onclick=()=>{$("reviewDisplay").classList.add("hidden");$("reviewEdit").classList.remove("hidden");};
-  $("reviewUpdateBtn").onclick=async()=>{ const data={monthlyRevenue:+$("reviewRevenue").value||0,netProfit:+$("reviewProfit").value||0,recurringRevenue:+$("reviewRecurring").value||0,jobsCompleted:+$("reviewJobs").value||0,doorsKnocked:+$("reviewDoors").value||0,closeRate:+$("reviewCloseRate").value||0,updatedAt:Date.now(),updatedBy:currentName}; await setDoc(doc(db,"shared","monthlyIncomeReview"),data,{merge:true}); reviewCache=data; renderReviewDisplay(); $("reviewEdit").classList.add("hidden"); $("reviewDisplay").classList.remove("hidden"); };
-  $("reviewOverlay").addEventListener("click",e=>{if(e.target===$("reviewOverlay"))$("reviewOverlay").classList.add("hidden");});
+  if($("reviewHandle")) $("reviewHandle").onclick=()=>{$("reviewOverlay").classList.remove("hidden");$("reviewLogin").classList.remove("hidden");$("reviewEdit").classList.add("hidden");$("reviewDisplay").classList.add("hidden");$("reviewPassword").value="";};
+  if($("reviewEnterBtn")) $("reviewEnterBtn").onclick=()=>{ if($("reviewPassword").value!=="2122") return toast("Wrong password"); $("reviewLogin").classList.add("hidden"); $("reviewEdit").classList.remove("hidden"); fillReviewInputs(); };
+  if($("reviewCloseBtn")) $("reviewCloseBtn").onclick=()=>$("reviewOverlay").classList.add("hidden");
+  if($("reviewBackBtn")) $("reviewBackBtn").onclick=()=>{$("reviewDisplay").classList.add("hidden");$("reviewEdit").classList.remove("hidden");};
+  if($("reviewUpdateBtn")) $("reviewUpdateBtn").onclick=async()=>{ const data={monthlyRevenue:+$("reviewRevenue").value||0,netProfit:+$("reviewProfit").value||0,recurringRevenue:+$("reviewRecurring").value||0,jobsCompleted:+$("reviewJobs").value||0,doorsKnocked:+$("reviewDoors").value||0,closeRate:+$("reviewCloseRate").value||0,updatedAt:Date.now(),updatedBy:currentName}; await setDoc(doc(db,"shared","monthlyIncomeReview"),data,{merge:true}); reviewCache=data; renderReviewDisplay(); $("reviewEdit").classList.add("hidden"); $("reviewDisplay").classList.remove("hidden"); };
+  if($("reviewOverlay")) $("reviewOverlay").addEventListener("click",e=>{if(e.target===$("reviewOverlay"))$("reviewOverlay").classList.add("hidden");});
 }
 function defaultReview(){ return {monthlyRevenue:0,netProfit:0,recurringRevenue:0,jobsCompleted:0,doorsKnocked:0,closeRate:0}; }
-function fillReviewInputs(){ const r={...defaultReview(),...reviewCache}; $("reviewRevenue").value=r.monthlyRevenue; $("reviewProfit").value=r.netProfit; $("reviewRecurring").value=r.recurringRevenue; $("reviewJobs").value=r.jobsCompleted; $("reviewDoors").value=r.doorsKnocked; $("reviewCloseRate").value=r.closeRate; }
-function renderReviewDisplay(){ const r={...defaultReview(),...reviewCache}; $("reviewNumbers").innerHTML = [["Monthly Revenue",money(r.monthlyRevenue)],["Net Profit",money(r.netProfit)],["Recurring Revenue",money(r.recurringRevenue)],["Jobs Completed",r.jobsCompleted],["Doors Knocked",r.doorsKnocked],["Close Rate",`${r.closeRate}%`]].map(x=>`<div class="reviewMetric"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join(""); }
-function toast(msg){ toastEl.textContent=msg; toastEl.classList.remove("hidden"); clearTimeout(toastEl._t); toastEl._t=setTimeout(()=>toastEl.classList.add("hidden"),1800); }
+function fillReviewInputs(){ const r={...defaultReview(),...reviewCache}; if($("reviewRevenue")) $("reviewRevenue").value=r.monthlyRevenue; if($("reviewProfit")) $("reviewProfit").value=r.netProfit; if($("reviewRecurring")) $("reviewRecurring").value=r.recurringRevenue; if($("reviewJobs")) $("reviewJobs").value=r.jobsCompleted; if($("reviewDoors")) $("reviewDoors").value=r.doorsKnocked; if($("reviewCloseRate")) $("reviewCloseRate").value=r.closeRate; }
+function renderReviewDisplay(){ const r={...defaultReview(),...reviewCache}; if($("reviewNumbers")) $("reviewNumbers").innerHTML = [["Monthly Revenue",money(r.monthlyRevenue)],["Net Profit",money(r.netProfit)],["Recurring Revenue",money(r.recurringRevenue)],["Jobs Completed",r.jobsCompleted],["Doors Knocked",r.doorsKnocked],["Close Rate",`${r.closeRate}%`]].map(x=>`<div class="reviewMetric"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join(""); }
+
+function toast(msg){ if(!toastEl) return; toastEl.textContent=msg; toastEl.classList.remove("hidden"); clearTimeout(toastEl._t); toastEl._t=setTimeout(()=>toastEl.classList.add("hidden"),1800); }
 function esc(str){ return String(str??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
