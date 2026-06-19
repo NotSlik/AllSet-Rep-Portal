@@ -5,6 +5,8 @@ import { getFirestore, doc, getDoc, onSnapshot, setDoc } from "https://www.gstat
 const firebaseConfig={apiKey:"AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",authDomain:"allsetrepportal.firebaseapp.com",projectId:"allsetrepportal",storageBucket:"allsetrepportal.firebasestorage.app",messagingSenderId:"590070052736",appId:"1:590070052736:web:193a9edb6fd378fbd27365",measurementId:"G-SY45913J3Z",databaseURL:"https://allsetrepportal-default-rtdb.firebaseio.com"};
 const app=getApps()[0]||initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
 const $=id=>document.getElementById(id);
+const IMAGE_TARGET_BYTES=260000;
+const IMAGE_MAX_BYTES=320000;
 const METHODS=[
   {key:"cashApp",label:"Cash App",tagId:"cashAppTag",linkId:"cashAppLink",inputId:"setCashApp"},
   {key:"venmo",label:"Venmo",tagId:"venmoTag",linkId:"venmoLink",inputId:"setVenmo"},
@@ -166,23 +168,27 @@ async function fileToCompressedDataUrl(file){
   if(!file.type.startsWith("image/"))throw new Error("Choose an image file");
   const raw=await readFile(file);
   const img=await loadImage(raw);
-  const max=1200,scale=Math.min(1,max/Math.max(img.width,img.height));
+  const max=1000,scale=Math.min(1,max/Math.max(img.width,img.height));
   const canvas=document.createElement("canvas");
   canvas.width=Math.max(1,Math.round(img.width*scale));
   canvas.height=Math.max(1,Math.round(img.height*scale));
   const ctx=canvas.getContext("2d");
   ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
-  let data=canvas.toDataURL("image/jpeg",.84);
-  if(data.length>850000){
+  let data=canvas.toDataURL("image/jpeg",.78);
+  let guard=0;
+  while(data.length>IMAGE_TARGET_BYTES&&guard<5){
     const small=document.createElement("canvas");
-    const ratio=Math.sqrt(850000/data.length)*.92;
+    const ratio=Math.max(.64,Math.sqrt(IMAGE_TARGET_BYTES/data.length)*.9);
     small.width=Math.max(1,Math.round(canvas.width*ratio));
     small.height=Math.max(1,Math.round(canvas.height*ratio));
     const smallCtx=small.getContext("2d");
     smallCtx.fillStyle="#fff";smallCtx.fillRect(0,0,small.width,small.height);smallCtx.drawImage(canvas,0,0,small.width,small.height);
-    data=small.toDataURL("image/jpeg",.78);
+    canvas.width=small.width;canvas.height=small.height;
+    ctx.drawImage(small,0,0);
+    data=small.toDataURL("image/jpeg",.72-guard*.04);
+    guard++;
   }
-  if(data.length>950000)throw new Error("Image is still too large. Try a screenshot or smaller image.");
+  if(data.length>IMAGE_MAX_BYTES)throw new Error("Image is still too large. Try a tighter screenshot of the payment code.");
   return data;
 }
 function readFile(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("Could not read image"));r.readAsDataURL(file);});}
