@@ -1,346 +1,93 @@
-console.log("🚀 AllSet CRM Operations Engine Active");
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, addDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const firebaseConfig={apiKey:"AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",authDomain:"allsetrepportal.firebaseapp.com",projectId:"allsetrepportal",storageBucket:"allsetrepportal.firebasestorage.app",messagingSenderId:"590070052736",appId:"1:590070052736:web:193a9edb6fd378fbd27365",measurementId:"G-SY45913J3Z",databaseURL:"https://allsetrepportal-default-rtdb.firebaseio.com"};
+const app=getApps()[0]||initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
+const $=id=>document.getElementById(id),esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"),money=n=>"$"+Number(n||0).toLocaleString();
+const ADMIN_CODE="2122",lockedPages=new Set(["admin","equipment"]);
+let uid="",role=localStorage.getItem("allset_rep_role")||"rep",name=localStorage.getItem("allset_rep_name")||"Team",activeChannel="General",adminUnlocked=sessionStorage.getItem("allset_admin_unlocked")==="1";
+let reps={},leads={},jobs={},customers={},chat={},settings={},neighborhoods={},territoryLayer=null,pendingJobId="",renderingJobs=false,subscribed=false;
 
-// Core Firebase Configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
-  authDomain: "allsetrepportal.firebaseapp.com",
-  projectId: "allsetrepportal",
-  storageBucket: "allsetrepportal.firebasestorage.app",
-  messagingSenderId: "590070052736",
-  appId: "1:590070052736:web:193a9edb6fd378fbd27365",
-  measurementId: "G-SY45913J3Z",
-  databaseURL: "https://allsetrepportal-default-rtdb.firebaseio.com"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// Application State Caches
-let currentChannel = "General";
-let leadsCache = {};
-let jobsCache = {};
-let repsCache = {};
-
-// Helper Utilities
-const $ = (id) => document.getElementById(id);
-const escapeHtml = (str) => String(str ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-const formatCurrency = (num) => "$" + Number(num || 0).toLocaleString();
-
-// Initialization Sequence
-initChatSystem();
-initFirestoreWatchers();
-initUtilityControlListeners();
-
-/* ==========================================================================
-   1. REAL-TIME TEAM CHAT (MULTICHANNEL)
-   ========================================================================== */
-function initChatSystem() {
-  const chatInput = $("chatInput");
-  const chatSendBtn = $("chatSendBtn");
-
-  // Handle Channel Navigation Tabs
-  document.querySelectorAll(".chatChannel").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".chatChannel").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentChannel = btn.dataset.channel;
-      streamChatMessages();
-    });
-  });
-
-  // Message Dispatches
-  if (chatSendBtn && chatInput) {
-    const handleMessageDispatch = async () => {
-      const messageText = chatInput.value.trim();
-      if (!messageText) return;
-
-      const senderIdentity = localStorage.getItem("allset_rep_name") || "Anonymous";
-      chatInput.value = "";
-
-      try {
-        await addDoc(collection(db, "chat_messages"), {
-          channel: currentChannel,
-          sender: senderIdentity,
-          text: messageText,
-          createdAt: Date.now()
-        });
-      } catch (err) {
-        console.error("Failed to commit chat record:", err);
-      }
-    };
-
-    chatSendBtn.addEventListener("click", handleMessageDispatch);
-    chatInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleMessageDispatch(); });
-  }
-
-  streamChatMessages();
+bootOps();
+function bootOps(){ensureOpsUi();injectCss();wire();signInAnonymously(auth).catch(()=>{});onAuthStateChanged(auth,u=>{uid=u?.uid||uid;subscribe();refreshUser();applyNav();renderAll();});}
+function ensureOpsUi(){
+  $("page-chat")?.remove();document.querySelectorAll('.navBtn[data-page="chat"]').forEach(b=>b.remove());
+  const main=document.querySelector(".main");if(main){if(!$("page-leaderboard"))main.insertAdjacentHTML("beforeend",`<section id="page-leaderboard" class="page tablePage"><div class="pageHeader"><div><h1>Leaderboard</h1><p>Rep revenue, sold jobs, converted leads, and close rate.</p></div></div><div id="leaderboardTable" class="tableCard"></div></section>`);if(!$("page-board"))main.insertAdjacentHTML("beforeend",`<section id="page-board" class="page tablePage"><div class="pageHeader"><div><h1>Board</h1><p>Cleaner claimed jobs, completed jobs, and amount earned.</p></div></div><div id="boardTable" class="tableCard"></div></section>`);}
+  if(!$("dashboardChatBtn"))document.body.insertAdjacentHTML("beforeend",`<button id="dashboardChatBtn" class="dashboardChatBtn" type="button">Chat</button>`);
+  if(!$("chatDrawer"))document.body.insertAdjacentHTML("beforeend",`<div id="chatScrim" class="chatScrim"></div><aside id="chatDrawer" class="chatDrawer"><div class="chatDrawerHeader"><div><strong>Team Chat</strong><span>Live field updates</span></div><button id="closeChatBtn" class="ghostBtn smallBtn" type="button">Close</button></div><div class="chatChannels"><button class="chatChannel active" data-channel="General" type="button">General</button><button class="chatChannel" data-channel="Sales" type="button">Sales</button><button class="chatChannel" data-channel="Cleaning" type="button">Cleaning</button><button class="chatChannel" data-channel="Announcements" type="button">Announcements</button></div><div id="chatMessages" class="chatMessages"></div><div class="chatComposer"><input id="chatInput" placeholder="Message the team" /><button id="chatSendBtn" class="actionBtn" type="button">Send</button></div></aside>`);
+  syncDashboard();
 }
-
-function streamChatMessages() {
-  const container = $("chatMessages");
-  if (!container) return;
-
-  const msgQuery = query(collection(db, "chat_messages"), orderBy("createdAt", "asc"));
-
-  onSnapshot(msgQuery, (snapshot) => {
-    container.innerHTML = "";
-    let hasContent = false;
-
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      if (data.channel !== currentChannel) return;
-      hasContent = true;
-
-      const row = document.createElement("div");
-      row.className = "logItem";
-
-      const formattedTime = data.createdAt 
-        ? new Date(data.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) 
-        : "";
-
-      row.innerHTML = `<span class="muted">[${formattedTime}]</span> <b>${escapeHtml(data.sender)}:</b> ${escapeHtml(data.text)}`;
-      container.appendChild(row);
-    });
-
-    if (!hasContent) {
-      container.innerHTML = `<div class="muted" style="padding: 12px;">Welcome to the beginning of the #${currentChannel} channel.</div>`;
-    }
-    container.scrollTop = container.scrollHeight;
-  });
+function injectCss(){
+  if($("opsCss"))return;const s=document.createElement("style");s.id="opsCss";s.textContent=`
+  .statCard,.panel{position:relative}.statCard{overflow:hidden}.panelHeader{position:relative;overflow:hidden}.statCard::before,.panelHeader::before{content:""!important;position:absolute!important;top:0!important;left:14px!important;right:14px!important;height:3px!important;border-radius:0 0 999px 999px!important;background:linear-gradient(90deg,transparent,rgba(56,189,248,.72),rgba(124,58,237,.62),transparent)!important;box-shadow:0 0 18px rgba(56,189,248,.18)!important}.panelHeader::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.045),transparent 48%)}.panelHeader>*{position:relative;z-index:1}
+  .navBtn{position:relative}.navBtn--locked{opacity:.82;border-style:dashed}.navBtn.hasOpenJobs::after{content:attr(data-open-count);position:absolute;right:10px;top:50%;transform:translateY(-50%);min-width:20px;height:20px;display:grid;place-items:center;padding:0 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;font-weight:950;box-shadow:0 0 0 3px rgba(239,68,68,.16),0 8px 22px rgba(239,68,68,.28)}
+  .dashboardChatBtn{position:fixed;right:16px;top:calc(46% - 82px);z-index:1001;min-width:74px;padding:13px 16px;border-radius:16px 16px 0 16px;color:#06101a;background:linear-gradient(90deg,var(--accent1),var(--accent2));box-shadow:0 16px 42px rgba(0,0,0,.38)}body:not(.allset-dashboard-active) .dashboardChatBtn{display:none}
+  .chatScrim{position:fixed;inset:0;background:rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:1190}.chatScrim.open{opacity:1;pointer-events:auto}.chatDrawer{position:fixed;top:78px;right:12px;bottom:18px;width:min(390px,calc(100vw - 22px));display:grid;grid-template-rows:auto auto 1fr auto;background:linear-gradient(180deg,rgba(13,20,34,.96),rgba(8,13,23,.96));border:1px solid rgba(255,255,255,.16);border-radius:18px;box-shadow:0 26px 90px rgba(0,0,0,.58);transform:translateX(calc(100% + 26px));transition:transform .22s ease;z-index:1200;overflow:hidden}.chatDrawer.open{transform:translateX(0)}
+  .chatDrawerHeader{display:flex;justify-content:space-between;gap:12px;padding:14px;border-bottom:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.045)}.chatDrawerHeader strong,.chatDrawerHeader span{display:block}.chatDrawerHeader span{color:var(--muted);font-size:12px}.chatChannels{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important;padding:12px!important;border-bottom:1px solid rgba(255,255,255,.10)!important;background:rgba(0,0,0,.14)}.chatChannel{min-height:42px;border-radius:12px!important;border:1px solid rgba(255,255,255,.12)!important;background:rgba(255,255,255,.07)!important;color:var(--text)!important;padding:9px 10px!important;text-align:center}.chatChannel.active{background:linear-gradient(90deg,rgba(56,189,248,.28),rgba(124,58,237,.24))!important;border-color:rgba(56,189,248,.48)!important}
+  .chatMessages{display:flex!important;flex-direction:column;gap:9px!important;padding:12px!important;overflow:auto!important;max-height:none!important}.chatMessage{position:relative;border:1px solid rgba(255,255,255,.10)!important;background:rgba(255,255,255,.06)!important;border-radius:13px!important;padding:10px 38px 10px 11px!important}.chatMeta{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-bottom:4px}.chatMeta time{font-size:12px;color:var(--muted)}.chatMessage p{margin:0;line-height:1.35;font-size:13px}.deleteChatBtn{position:absolute;top:8px;right:8px;width:26px;height:26px;padding:0;border-radius:999px}.chatComposer{display:grid!important;grid-template-columns:1fr auto;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.16)}
+  .tableActions,.territoryActions{display:flex;gap:7px;flex-wrap:wrap}.territoryItem{align-items:flex-start!important}.territoryActions{justify-content:flex-end}.territoryName{display:block;font-weight:900}.territoryMeta{display:block;color:var(--muted);font-size:12px;margin-top:2px}.territorySwatch{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:7px;box-shadow:0 0 0 3px rgba(255,255,255,.08)}
+  .scheduleEditor,.scheduleBoard{gap:12px!important}.dayRow{grid-template-columns:minmax(132px,1.1fr) minmax(112px,1fr) minmax(112px,1fr) minmax(100px,.8fr)!important;align-items:center!important;border-radius:12px!important;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.04))!important}.dayRow label{font-size:12px!important}.dayRow select{min-height:42px}.scheduleUser{border-radius:12px!important;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.04))!important}.payBtn{position:relative;overflow:hidden}.payBtn::before{content:"";position:absolute;left:16px;right:16px;top:0;height:3px;border-radius:0 0 999px 999px;background:linear-gradient(90deg,transparent,rgba(56,189,248,.65),transparent)}.payQr{display:block;width:72px;height:72px;object-fit:cover;border-radius:10px;margin:10px auto 0;border:1px solid rgba(255,255,255,.14)}
+  @media (max-width:720px){#mobileNavBtn{padding:15px 19px!important;font-size:16px!important}.dashboardChatBtn{right:14px;bottom:86px;top:auto;border-radius:16px}.chatDrawer{top:70px;right:8px;bottom:8px;width:calc(100vw - 16px);border-radius:16px}.dayRow{grid-template-columns:1fr!important}}`;
+  document.head.appendChild(s);
 }
-
-/* ==========================================================================
-   2. FIRESTORE PIPELINE & METRIC LISTENERS
-   ========================================================================== */
-function initFirestoreWatchers() {
-  onSnapshot(collection(db, "leads"), snap => {
-    leadsCache = {}; snap.forEach(d => leadsCache[d.id] = d.data());
-    recalculateLeaderboard();
-  });
-
-  onSnapshot(collection(db, "jobs"), snap => {
-    jobsCache = {}; snap.forEach(d => jobsCache[d.id] = d.data());
-    recalculateLeaderboard();
-    recalculateCleanerBoard();
-  });
-
-  onSnapshot(collection(db, "reps"), snap => {
-    repsCache = {}; snap.forEach(d => repsCache[d.id] = d.data());
-    recalculateLeaderboard();
-  });
-
-  onSnapshot(doc(db, "shared", "settings"), snap => {
-    if (snap.exists()) pullExtendedSettings(snap.data());
-  });
+function wire(){
+  document.addEventListener("click",navGate,true);
+  document.addEventListener("click",e=>{const nav=e.target.closest(".navBtn");if(nav)setTimeout(()=>{refreshUser();applyNav();syncDashboard();renderAll();},0);if(e.target.closest('[data-open="jobModal"]'))pendingJobId="";if(e.target.closest('[data-open="jobModal"]')||String(e.target.getAttribute?.("onclick")||"").includes("crmEdit('job'")){setTimeout(enhanceJobModal,0);setTimeout(enhanceJobModal,120)}const ch=e.target.closest(".chatChannel");if(ch){activeChannel=ch.dataset.channel||"General";document.querySelectorAll(".chatChannel").forEach(b=>b.classList.toggle("active",b.dataset.channel===activeChannel));renderChat()}if(e.target.closest("#dashboardChatBtn"))openChat();if(e.target.closest("#closeChatBtn")||e.target.closest("#chatScrim"))closeChat();const cd=e.target.closest(".deleteChatBtn");if(cd)deleteChat(cd.dataset.id);const td=e.target.closest(".deleteRepBtn,.deleteCleanerBtn");if(td)deleteTeam(td.dataset.id,td.dataset.name||"team member");const ta=e.target.closest(".territoryAssignBtn");if(ta)assignTerritory(ta.dataset.id);const tdel=e.target.closest(".territoryDeleteBtn");if(tdel)deleteTerritory(tdel.dataset.id);if(e.target?.id==="chatSendBtn")sendChat();});
+  document.addEventListener("keydown",e=>{if(e.target?.id==="chatInput"&&e.key==="Enter")sendChat();if(e.key==="Escape")closeChat();});
+  $("enterBtn")?.addEventListener("click",()=>setTimeout(()=>{refreshUser();applyNav();renderAll();syncDashboard();},250));
+  $("saveSettingsBtn")?.addEventListener("click",savePaymentSettings);
+  const main=document.querySelector(".main");if(main)new MutationObserver(syncDashboard).observe(main,{subtree:true,attributes:true,attributeFilter:["class"]});
+  const jt=$("jobsTable");if(jt)new MutationObserver(()=>{if(!renderingJobs&&role==="cleaner"&&jt.textContent.includes("Price"))renderCleanerJobs();}).observe(jt,{childList:true,subtree:true});
+  setTimeout(wrapCrmEdit,0);
 }
-
-/* ==========================================================================
-   3. DYNAMIC LEADERBOARD PROCESSING
-   ========================================================================== */
-function recalculateLeaderboard() {
-  const tableTarget = $("leaderboardTable");
-  if (!tableTarget) return;
-
-  const aggregates = {};
-
-  // Hydrate known sales profiles
-  Object.values(repsCache).forEach(rep => {
-    if (rep.name) aggregates[rep.name] = { revenue: 0, sold: 0, converted: 0, totalLeads: 0 };
-  });
-
-  // Incorporate mapped or manually appended lead performance vectors
-  Object.values(leadsCache).forEach(lead => {
-    const nameKey = lead.repName || repsCache[lead.repId]?.name || lead.createdBy || "House";
-    if (!aggregates[nameKey]) aggregates[nameKey] = { revenue: 0, sold: 0, converted: 0, totalLeads: 0 };
-
-    aggregates[nameKey].totalLeads++;
-    if (lead.status === "sold") aggregates[nameKey].sold++;
-    if (lead.status === "converted") aggregates[nameKey].converted++;
-    aggregates[nameKey].revenue += Number(lead.quote || lead.amount || 0);
-  });
-
-  // Incorporate standalone operational job values
-  Object.values(jobsCache).forEach(job => {
-    const nameKey = job.repName || repsCache[job.repId]?.name || "House";
-    if (!aggregates[nameKey]) aggregates[nameKey] = { revenue: 0, sold: 0, converted: 0, totalLeads: 0 };
-    aggregates[nameKey].revenue += Number(job.price || 0);
-  });
-
-  const bodyRows = Object.entries(aggregates)
-    .sort((a, b) => b[1].revenue - a[1].revenue)
-    .map(([repName, metrics]) => {
-      const divisor = metrics.totalLeads || 1;
-      const calculatedClose = Math.round(((metrics.sold + metrics.converted) / divisor) * 100);
-
-      return `<tr>
-        <td><strong>${escapeHtml(repName)}</strong></td>
-        <td>${formatCurrency(metrics.revenue)}</td>
-        <td>${metrics.sold}</td>
-        <td>${metrics.converted}</td>
-        <td>${calculatedClose}%</td>
-      </tr>`;
-    });
-
-  if (!bodyRows.length) {
-    tableTarget.innerHTML = `<div class="card">No field performance logs tracking across this window.</div>`;
-    return;
-  }
-
-  tableTarget.innerHTML = `
-    <table class="dataTable">
-      <thead>
-        <tr>
-          <th>Rep Name</th>
-          <th>Revenue</th>
-          <th>Sold Dots</th>
-          <th>Converted Leads</th>
-          <th>Close Rate</th>
-        </tr>
-      </thead>
-      <tbody>${bodyRows.join("")}</tbody>
-    </table>`;
-}
-
-/* ==========================================================================
-   4. CLEANER DISPATCH BOARD PROCESSING
-   ========================================================================== */
-function recalculateCleanerBoard() {
-  const tableTarget = $("boardTable");
-  if (!tableTarget) return;
-
-  const crewAggregates = {};
-
-  Object.values(jobsCache).forEach(job => {
-    const cleanerName = (job.cleaner || "").trim();
-    if (!cleanerName) return;
-
-    if (!crewAggregates[cleanerName]) {
-      crewAggregates[cleanerName] = { claimed: 0, completed: 0, reliability: 100 };
-    }
-
-    crewAggregates[cleanerName].claimed++;
-    if (job.status === "completed") {
-      crewAggregates[cleanerName].completed++;
-    } else if (job.status === "cancelled") {
-      crewAggregates[cleanerName].reliability = Math.max(0, crewAggregates[cleanerName].reliability - 15);
-    }
-  });
-
-  const bodyRows = Object.entries(crewAggregates).map(([cleaner, data]) => {
-    return `<tr>
-      <td><strong>${escapeHtml(cleaner)}</strong></td>
-      <td>${data.claimed}</td>
-      <td>${data.completed}</td>
-      <td>${data.reliability}%</td>
-    </tr>`;
-  });
-
-  if (!bodyRows.length) {
-    tableTarget.innerHTML = `<div class="card">No active crew tracking entries on the active matrix.</div>`;
-    return;
-  }
-
-  tableTarget.innerHTML = `
-    <table class="dataTable">
-      <thead>
-        <tr>
-          <th>Cleaner Name</th>
-          <th>Claimed Jobs</th>
-          <th>Completed Jobs</th>
-          <th>Reliability Rating</th>
-        </tr>
-      </thead>
-      <tbody>${bodyRows.join("")}</tbody>
-    </table>`;
-}
-
-/* ==========================================================================
-   5. EXTENDED SETTINGS REFLECTIONS (PAYPAL & MARKETING QRS)
-   ========================================================================== */
-function pullExtendedSettings(settings) {
-  if ($("paypalTag")) $("paypalTag").textContent = settings.paypal || "paypal.me/AllSet";
-  if ($("paypalLink")) $("paypalLink").href = settings.paypal ? `https://${settings.paypal}` : "https://paypal.me/AllSet";
-
-  if ($("setPaypal")) $("setPaypal").value = settings.paypal || "";
-  if ($("setCashAppQr")) $("setCashAppQr").value = settings.cashAppQr || "";
-  if ($("setVenmoQr")) $("setVenmoQr").value = settings.venmoQr || "";
-  if ($("setPaypalQr")) $("setPaypalQr").value = settings.paypalQr || "";
-  if ($("setZelleQr")) $("setZelleQr").value = settings.zelleQr || "";
-}
-
-/* ==========================================================================
-   6. TERRITORY lifecycle & OVERRIDE HANDLERS
-   ========================================================================== */
-function initUtilityControlListeners() {
-  const saveBtn = $("saveSettingsBtn");
-  if (saveBtn) {
-    saveBtn.addEventListener("click", async () => {
-      const layoutPatch = {
-        paypal: $("setPaypal")?.value || "",
-        cashAppQr: $("setCashAppQr")?.value || "",
-        venmoQr: $("setVenmoQr")?.value || "",
-        paypalQr: $("setPaypalQr")?.value || "",
-        zelleQr: $("setZelleQr")?.value || ""
-      };
-
-      try {
-        await setDoc(doc(db, "shared", "settings"), layoutPatch, { merge: true });
-      } catch (err) {
-        console.warn("Administrative pipeline update bypassed runtime execution:", err.message);
-      }
-    });
-  }
-
-  // Global Territory Erasure Hook
-  const clearTerritoriesBtn = $("clearTerritoriesBtn");
-  if (clearTerritoriesBtn) {
-    clearTerritoriesBtn.addEventListener("click", async () => {
-      if (!confirm("⚠️ DANGER: Are you completely certain you want to purge ALL drawn territories across the global system?")) return;
-
-      try {
-        const querySnapshot = await getDocs(collection(db, "neighborhoods"));
-        const clearanceBatch = writeBatch(db);
-        querySnapshot.forEach((docRef) => clearanceBatch.delete(docRef.ref));
-        await clearanceBatch.commit();
-        alert("Success: All regional boundaries dropped.");
-      } catch (err) {
-        alert("Erase operation aborted: " + err.message);
-      }
-    });
-  }
-
-  // Single Territory Undo (User Identity Scoped Isolation Loop)
-  const undoDrawBtn = $("undoDrawBtn");
-  if (undoDrawBtn) {
-    undoDrawBtn.addEventListener("click", async () => {
-      const activeUser = localStorage.getItem("allset_rep_name") || "";
-      if (!activeUser) return alert("Configuration Error: Assign your browser profile identity block before altering map features.");
-
-      try {
-        const querySnapshot = await getDocs(collection(db, "neighborhoods"));
-        let chronologicalTarget = null;
-
-        querySnapshot.forEach(d => {
-          const payload = d.data();
-          if (payload.createdBy === activeUser) {
-            if (!chronologicalTarget || payload.createdAt > chronologicalTarget.createdAt) {
-              chronologicalTarget = { firestoreId: d.id, ...payload };
-            }
-          }
-        });
-
-        if (chronologicalTarget) {
-          await deleteDoc(doc(db, "neighborhoods", chronologicalTarget.firestoreId));
-          alert(`Undone: Removed your last drawn territory allocation "${chronologicalTarget.name}"`);
-        } else {
-          alert("No recent territory tracks matching your active profile signature found.");
-        }
-      } catch (err) {
-        console.error("Map transaction execution fault:", err);
-      }
-    });
-  }
-}
+function navGate(e){const b=e.target.closest(".navBtn");if(!b?.dataset.page)return;refreshUser();if(b.dataset.page==="chat"){e.preventDefault();e.stopImmediatePropagation();openChat();return}if(lockedPages.has(b.dataset.page)&&!isAdminish()){const code=prompt("Enter admin password:");if(code!==ADMIN_CODE){e.preventDefault();e.stopImmediatePropagation();toast("Wrong password");return}adminUnlocked=true;sessionStorage.setItem("allset_admin_unlocked","1");applyNav();}}
+function subscribe(){if(subscribed)return;subscribed=true;onSnapshot(collection(db,"reps"),s=>{reps=snapObj(s);renderAll()});onSnapshot(collection(db,"leads"),s=>{leads=snapObj(s);renderAll()});onSnapshot(collection(db,"jobs"),s=>{jobs=snapObj(s);renderAll()});onSnapshot(collection(db,"customers"),s=>{customers=snapObj(s);renderAll()});onSnapshot(collection(db,"chatMessages"),s=>{chat=snapObj(s);renderChat()});onSnapshot(collection(db,"neighborhoods"),s=>{neighborhoods=snapObj(s);renderTerritories();renderTerritoryMap()});onSnapshot(doc(db,"shared","settings"),s=>{settings=s.exists()?s.data():{};applyPayments()});}
+function snapObj(s){const o={};s.forEach(d=>o[d.id]={...d.data(),id:d.data().id||d.id});return o}
+function refreshUser(){role=localStorage.getItem("allset_rep_role")||$("roleSelect")?.value||role||"rep";name=localStorage.getItem("allset_rep_name")||$("nicknameInput")?.value||name||"Team"}
+function isAdminish(){return role==="admin"||adminUnlocked}
+function pages(){return{rep:["dashboard","map","leads","jobs","leaderboard","payments","admin","equipment"],cleaner:["dashboard","jobs","board","schedule","payments","admin","equipment"],admin:["dashboard","map","leads","jobs","leaderboard","board","schedule","customers","team","payments","admin","equipment"]}}
+function applyNav(){const allowed=pages()[role]||pages().rep;document.querySelectorAll(".navBtn").forEach(b=>{const p=b.dataset.page;if(p==="chat"){b.classList.add("hidden");return}const show=allowed.includes(p)||(lockedPages.has(p)&&role!=="admin"),locked=lockedPages.has(p)&&!isAdminish();b.classList.toggle("hidden",!show);b.classList.toggle("navBtn--locked",show&&locked);b.dataset.locked=show&&locked?"1":"";const label=p==="map"?"Live Map":p==="schedule"&&role==="cleaner"?"Schedule":p==="schedule"?"Scheduling":p.charAt(0).toUpperCase()+p.slice(1);b.textContent=locked?`${label} (Locked)`:label});document.querySelectorAll(".adminOnly").forEach(el=>el.classList.toggle("hidden",!isAdminish()));applyPayments();badgeJobs()}
+function syncDashboard(){const on=$("page-dashboard")?.classList.contains("active");document.body.classList.toggle("allset-dashboard-active",!!on);if(!on)closeChat()}
+function renderAll(){renderLeaderboard();renderBoard();renderCleanerJobs();renderChat();renderTerritories();renderTerritoryMap();applyPayments();badgeJobs()}
+function renderLeaderboard(){const m=new Map();Object.entries(reps).filter(([,r])=>(r.role||"rep")==="rep").forEach(([id,r])=>m.set(id,{id,name:r.name||"Rep",revenue:0,sold:0,converted:0,total:0}));Object.values(leads).forEach(l=>{const id=l.repId||l.repName||"unknown";if(!m.has(id))m.set(id,{id,name:l.repName||reps[l.repId]?.name||"Rep",revenue:0,sold:0,converted:0,total:0});const s=m.get(id);s.total++;if(["sold","converted"].includes(String(l.status||"").toLowerCase())){s.converted++;s.revenue+=Number(l.quote||l.amount||0)}});Object.values(jobs).forEach(j=>{const id=j.repId||j.repName||"unknown";if(!m.has(id))m.set(id,{id,name:j.repName||reps[j.repId]?.name||"Rep",revenue:0,sold:0,converted:0,total:0});const s=m.get(id);if(["open","claimed","in_progress","completed","scheduled"].includes(jobStatus(j.status)))s.sold++;s.revenue+=Number(j.price||j.amount||0)});const manage=isAdminish(),rows=[...m.values()].sort((a,b)=>b.revenue-a.revenue).map(s=>`<tr><td><strong>${esc(s.name)}</strong></td><td>${money(s.revenue)}</td><td>${s.sold}</td><td>${s.converted}</td><td>${s.total?Math.round(s.converted/s.total*100):0}%</td>${manage?`<td>${reps[s.id]?`<button class="dangerBtn smallBtn deleteRepBtn" data-id="${esc(s.id)}" data-name="${esc(s.name)}">Delete</button>`:""}</td>`:""}</tr>`);table("leaderboardTable",manage?["Rep","Revenue","Sold Jobs","Leads Converted","Close Rate",""]:["Rep","Revenue","Sold Jobs","Leads Converted","Close Rate"],rows,"No leaderboard data yet.")}
+function renderBoard(){const m=new Map();Object.entries(reps).filter(([,r])=>r.role==="cleaner").forEach(([id,r])=>m.set(id,{id,name:r.name||"Cleaner",claimed:0,completed:0,earned:0}));Object.values(jobs).forEach(j=>{const id=j.cleanerId||j.cleanerName||j.cleaner||"unassigned";if(!m.has(id))m.set(id,{id,name:j.cleanerName||j.cleaner||"Unassigned",claimed:0,completed:0,earned:0});const s=m.get(id),st=jobStatus(j.status);if(j.claimedAt||["claimed","in_progress","completed"].includes(st)||j.cleanerId||j.cleanerName||j.cleaner)s.claimed++;if(st==="completed"||j.completedAt||j.cleanedAt){s.completed++;s.earned+=cleanerPay(j,true)}});const manage=isAdminish(),rows=[...m.values()].sort((a,b)=>b.earned-a.earned||b.completed-a.completed).map(s=>`<tr><td><strong>${esc(s.name)}</strong></td><td>${s.claimed}</td><td>${s.completed}</td><td>${money(s.earned)}</td>${manage?`<td>${reps[s.id]?`<button class="dangerBtn smallBtn deleteCleanerBtn" data-id="${esc(s.id)}" data-name="${esc(s.name)}">Delete</button>`:""}</td>`:""}</tr>`);table("boardTable",manage?["Cleaner","Jobs Claimed","Jobs Completed","Amount Earned",""]:["Cleaner","Jobs Claimed","Jobs Completed","Amount Earned"],rows,"No cleaner board data yet.")}
+function renderCleanerJobs(){const el=$("jobsTable");if(!el||role!=="cleaner")return;renderingJobs=true;const rows=Object.values(jobs).filter(j=>jobStatus(j.status)==="open"||j.cleanerId===uid||j.cleanerName===name||j.cleaner===name).map(j=>`<tr><td><strong>${esc(j.customer||j.title||"Job")}</strong><br><span class="muted">${esc(j.address||"")}</span></td><td>${esc(j.phone||"-")}</td><td>${esc(readableDate(j.scheduledAt)||"-")}</td><td><span class="status ${jobStatus(j.status)}">${esc(labelStatus(j.status))}</span></td><td>${esc(j.repName||"-")}</td><td>${esc(j.cleanerName||j.cleaner||"-")}</td><td>${payLabel(j)}</td><td><div class="tableActions">${jobButtons(j)}</div></td></tr>`);el.innerHTML=rows.length?`<table class="dataTable"><thead><tr><th>Job</th><th>Phone</th><th>Scheduled</th><th>Status</th><th>Rep</th><th>Cleaner</th><th>Cleaner Pay</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>`:`<div class="card">No open jobs yet.</div>`;setTimeout(()=>renderingJobs=false,0)}
+function jobButtons(j){const s=jobStatus(j.status),mine=j.cleanerId===uid||j.cleanerName===name||j.cleaner===name;if(s==="open")return`<button class="actionBtn smallBtn" onclick="window.opsClaimJob('${esc(j.id)}')">Claim Job</button>`;if(s==="claimed"&&mine)return`<button class="actionBtn smallBtn" onclick="window.opsStartJob('${esc(j.id)}')">Start Job</button>`;if(s==="in_progress"&&mine)return`<button class="actionBtn smallBtn" onclick="window.opsCompleteJob('${esc(j.id)}')">Complete Job</button>`;return""}
+window.opsClaimJob=async id=>{const j=jobs[id];if(!j||jobStatus(j.status)!=="open")return toast("That job is already claimed");const now=Date.now();await setDoc(doc(db,"jobs",id),{status:"claimed",cleanerId:uid,cleanerName:name,cleaner:name,claimedAt:now,updatedAt:now,updatedBy:name},{merge:true});log(`Job claimed: ${j.customer||j.title||id} by ${name}`)};
+window.opsStartJob=async id=>{const now=Date.now(),j=jobs[id];if(!j)return;await setDoc(doc(db,"jobs",id),{status:"in_progress",startedAt:now,updatedAt:now,updatedBy:name},{merge:true});log(`Job started: ${j.customer||j.title||id} by ${name}`)};
+window.opsCompleteJob=async id=>{const now=Date.now(),j=jobs[id];if(!j)return;await setDoc(doc(db,"jobs",id),{status:"completed",completedAt:now,cleanedAt:now,lastCleanedAt:now,updatedAt:now,updatedBy:name},{merge:true});log(`Job completed: ${j.customer||j.title||id} by ${name}`)};
+window.leadToJob=async leadId=>{const l=leads[leadId];if(!l)return toast("Lead not found");const id=`jobs-${Date.now()}`,now=Date.now();await setDoc(doc(db,"jobs",id),{...l,id,sourceLeadId:leadId,leadId,title:l.service||l.title||"Window Cleaning",customer:l.name||l.customer||"",address:l.address||"",phone:l.phone||"",scheduledAt:l.scheduledAt||"",cleaner:l.cleaner||"",price:Number(l.quote||l.amount||l.price||0),payCleanerAmount:Number(l.payCleanerAmount||l.cleanerPay||l.cleanerAmount||0),status:"open",notes:l.notes||"",repName:l.repName||name,repId:l.repId||uid,createdAt:now,createdBy:name,movedAt:now,movedBy:name},{merge:true});await deleteDoc(doc(db,"leads",leadId));log(`Lead moved to job: ${l.name||l.address||leadId}`);toast("Lead moved to Jobs");clickNav("jobs")};
+window.jobToCustomer=async jobId=>{const j=jobs[jobId];if(!j)return toast("Job not found");const now=Date.now(),existing=Object.values(customers).find(c=>sameCustomer(c,j)),customerName=j.customer||j.name||j.title||"";if(existing)await setDoc(doc(db,"customers",existing.id),{phone:existing.phone||j.phone||"",address:existing.address||j.address||"",service:existing.service||j.title||"Window Cleaning",lifetimeRevenue:Number(existing.lifetimeRevenue||0)+Number(j.price||j.amount||0),lastCleanedAt:j.cleanedAt||j.completedAt||now,updatedAt:now,updatedBy:name},{merge:true});else{const id=`cust-${Date.now()}`;await setDoc(doc(db,"customers",id),{id,name:customerName,phone:j.phone||"",address:j.address||"",service:j.title||"Window Cleaning",status:"completed_this_year",season:new Date().getFullYear(),recurring:!!j.recurring,recurringFrequency:j.recurringFrequency||"",followUpAt:j.followUpAt||"",lastKnockedAt:j.lastKnockedAt||j.knockedAt||"",lastCleanedAt:j.cleanedAt||j.completedAt||now,lifetimeRevenue:Number(j.price||j.amount||0),notes:j.notes||"",sourceJobId:jobId,createdAt:now,createdBy:name,movedAt:now,movedBy:name},{merge:true})}await deleteDoc(doc(db,"jobs",jobId));log(`Job moved to customer: ${customerName||jobId}`);toast("Job moved to Customers");clickNav("customers")};
+function openChat(){if(!$("page-dashboard")?.classList.contains("active"))return;$("chatDrawer")?.classList.add("open");$("chatScrim")?.classList.add("open");renderChat();setTimeout(()=>$("chatInput")?.focus(),100)}
+function closeChat(){$("chatDrawer")?.classList.remove("open");$("chatScrim")?.classList.remove("open")}
+async function sendChat(){const input=$("chatInput"),text=input?.value.trim();if(!text)return;if(activeChannel==="Announcements"&&!isAdminish())return toast("Only admins can post announcements");const id=`chat-${Date.now()}`;await setDoc(doc(db,"chatMessages",id),{id,channel:activeChannel,text,senderId:uid,senderName:name,senderRole:role,createdAt:Date.now()},{merge:true});input.value=""}
+function renderChat(){const box=$("chatMessages");if(!box)return;const msgs=Object.values(chat).filter(m=>(m.channel||"General")===activeChannel).sort((a,b)=>dateVal(a.createdAt)-dateVal(b.createdAt)).slice(-80);box.innerHTML=msgs.length?msgs.map(m=>`<div class="chatMessage"><div class="chatMeta"><strong>${esc(m.senderName||"Team")}</strong><time>${esc(chatStamp(m.createdAt))}</time></div><p>${esc(m.text||"")}</p>${isAdminish()||m.senderId===uid||m.senderName===name?`<button class="dangerBtn deleteChatBtn" data-id="${esc(m.id)}" title="Delete message">x</button>`:""}</div>`).join(""):`<div class="card noMargin">No messages in ${esc(activeChannel)} yet.</div>`;box.scrollTop=box.scrollHeight}
+async function deleteChat(id){if(id&&confirm("Delete this chat message?"))await deleteDoc(doc(db,"chatMessages",id))}
+async function deleteTeam(id,label){if(!isAdminish())return toast("Admin password required");if(!id||!reps[id])return toast("This row is from job history, not a team member record");if(confirm(`Delete ${label}? This removes the team member record, not job history.`)){await deleteDoc(doc(db,"reps",id));log(`Team member deleted: ${label}`)}}
+function renderTerritories(){const box=$("territoryList");if(!box)return;const nbs=Object.values(neighborhoods).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));box.innerHTML=nbs.length?nbs.map(nb=>`<div class="territoryItem"><span><span class="territoryName"><span class="territorySwatch" style="background:${esc(nb.color||"#38bdf8")}"></span>${esc(nb.name||"Area")}</span><span class="territoryMeta">${nb.assignedRepName?`Assigned: ${esc(nb.assignedRepName)}`:"Unassigned"}${nb.notes?` - ${esc(nb.notes)}`:""}</span></span><span class="territoryActions"><button class="ghostBtn smallBtn territoryAssignBtn" data-id="${esc(nb.id)}">Assign</button><button class="dangerBtn smallBtn territoryDeleteBtn" data-id="${esc(nb.id)}">Delete</button></span></div>`).join(""):`<div class="muted">No areas drawn yet.</div>`}
+function renderTerritoryMap(){if(!window.L||!window.allsetMap)return setTimeout(renderTerritoryMap,450);if(!territoryLayer)territoryLayer=L.layerGroup().addTo(window.allsetMap);territoryLayer.clearLayers();Object.values(neighborhoods).forEach(nb=>{if(!nb.geojson)return;const color=nb.color||"#38bdf8",g=L.geoJSON(nb.geojson,{interactive:true,style:{color,weight:5,opacity:.78,fillColor:color,fillOpacity:.1}});g.eachLayer(layer=>{layer.on("click",e=>window.allsetMap.openPopup(L.popup({closeButton:true,autoPan:true,maxWidth:260}).setLatLng(e.latlng).setContent(`<strong>${esc(nb.name||"Area")}</strong><div class="muted">${nb.assignedRepName?`Assigned: ${esc(nb.assignedRepName)}`:"Unassigned"}</div><div class="muted">${esc(nb.colorName||nb.color||"blue")}${nb.notes?` - ${esc(nb.notes)}`:""}</div><div style="display:grid;gap:7px;margin-top:9px"><button class="popBtn" onclick="window.opsAssignTerritory('${esc(nb.id)}')">Assign</button><button class="popBtn popBtn--danger" onclick="window.opsDeleteTerritory('${esc(nb.id)}')">Delete</button></div>`)));territoryLayer.addLayer(layer)})})}
+async function assignTerritory(id){const nb=neighborhoods[id];if(!nb)return toast("Area not found");const list=Object.entries(reps).filter(([,r])=>(r.role||"rep")!=="cleaner"),choices=list.map(([rid,r],i)=>`${i+1}. ${r.name||rid} (${r.role||"rep"})`).join("\n"),ans=prompt(`Assign ${nb.name||"this area"} to which rep?\n${choices||"Type a rep name."}`);if(!ans)return;const picked=list[Number(ans)-1],assignedRepId=picked?.[0]||"",assignedRepName=picked?.[1]?.name||ans.trim();await setDoc(doc(db,"neighborhoods",id),{assignedRepId,assignedRepName,updatedAt:Date.now(),updatedBy:name},{merge:true});if(assignedRepId)await setDoc(doc(db,"reps",assignedRepId),{assignedNeighborhoodId:id},{merge:true});log(`Territory assigned: ${nb.name||id} to ${assignedRepName}`);toast(`Assigned ${nb.name||"area"} to ${assignedRepName}`)}
+async function deleteTerritory(id){const nb=neighborhoods[id];if(!nb)return toast("Area not found");if(confirm(`Delete territory ${nb.name||id}?`)){await deleteDoc(doc(db,"neighborhoods",id));log(`Territory deleted: ${nb.name||id}`);toast("Territory deleted")}}
+window.opsAssignTerritory=assignTerritory;window.opsDeleteTerritory=deleteTerritory;
+function applyPayments(){const v={cashApp:settings.cashApp||"$AllSet",venmo:settings.venmo||"@AllSet",paypal:settings.paypal||"paypal.me/AllSet",zelle:settings.zelle||"allset@example.com"};setText("cashAppTag",v.cashApp);setText("venmoTag",v.venmo);setText("paypalTag",v.paypal);setText("zelleTag",v.zelle);setHref("cashAppLink",href("cashapp",v.cashApp));setHref("venmoLink",href("venmo",v.venmo));setHref("paypalLink",href("paypal",v.paypal));[["cashAppLink","cashAppQr"],["venmoLink","venmoQr"],["paypalLink","paypalQr"]].forEach(([id,key])=>{const el=$(id);if(!el)return;el.querySelector?.(".payQr")?.remove();if(settings[key])el.insertAdjacentHTML("beforeend",`<img class="payQr" src="${esc(settings[key])}" alt="" />`)});["CashApp","Venmo","Paypal","Zelle"].forEach(label=>{const id=`set${label}`,key=label==="Paypal"?"paypal":label.charAt(0).toLowerCase()+label.slice(1);if($(id))$(id).value=settings[key]||""});["CashAppQr","VenmoQr","PaypalQr","ZelleQr"].forEach(label=>{const id=`set${label}`,key=label.charAt(0).toLowerCase()+label.slice(1);if($(id))$(id).value=settings[key]||""})}
+async function savePaymentSettings(){if(!isAdminish())return;await setDoc(doc(db,"shared","settings"),{cashApp:$("setCashApp")?.value||"",venmo:$("setVenmo")?.value||"",paypal:$("setPaypal")?.value||"",zelle:$("setZelle")?.value||"",cashAppQr:$("setCashAppQr")?.value||"",venmoQr:$("setVenmoQr")?.value||"",paypalQr:$("setPaypalQr")?.value||"",zelleQr:$("setZelleQr")?.value||"",updatedAt:Date.now(),updatedBy:name},{merge:true});toast("Payment settings saved")}
+function href(kind,value){const raw=String(value||"").trim();if(/^https?:\/\//i.test(raw))return raw;if(kind==="cashapp")return`https://cash.app/${raw.replace(/^\$/,"")||"AllSet"}`;if(kind==="venmo")return`https://venmo.com/${raw.replace(/^@/,"")||"AllSet"}`;if(kind==="paypal"){const clean=raw.replace(/^https?:\/\//i,"").replace(/^www\./i,"").replace(/^paypal\.me\//i,"").replace(/^paypal\.com\/paypalme\//i,"").replace(/^@/,"");return`https://paypal.me/${encodeURIComponent(clean||"AllSet")}`}return raw}
+function cleanerPay(j,fall=false){const amount=Number(j.payCleanerAmount??j.cleanerPay??j.cleanerAmount??j.payCleaner??j.cleanerPayout??0);return amount||fall&&isAdminish()?Number(j.price||j.amount||j.quote||0):0}
+function payLabel(j){const n=cleanerPay(j,false);return n?money(n):`<span class="muted">Not set</span>`}
+function badgeJobs(){const count=Object.values(jobs).filter(j=>jobStatus(j.status)==="open").length;document.querySelectorAll('.navBtn[data-page="jobs"]').forEach(b=>{const show=role==="cleaner"&&count>0;b.classList.toggle("hasOpenJobs",show);b.dataset.openCount=show?String(count):"";b.title=show?`${count} unclaimed job${count===1?"":"s"}`:""})}
+function enhanceJobModal(){const card=$("modalCard");if(!card||card.querySelector('[data-field="payCleanerAmount"]'))return;const title=card.querySelector("h2")?.textContent||"",hasJob=card.querySelector('[data-field="price"]')&&card.querySelector('[data-field="cleaner"]');if(!/job/i.test(title)&&!hasJob)return;const grid=card.querySelector(".formGrid");if(!grid)return;const current=pendingJobId?jobs[pendingJobId]:null,value=current?(current.payCleanerAmount??current.cleanerPay??current.cleanerAmount??current.payCleaner??""):"",field=document.createElement("label");field.innerHTML=`Pay Cleaner Amount<input data-field="payCleanerAmount" type="number" min="0" step="1" value="${esc(value)}" placeholder="ex: 75" />`;const price=grid.querySelector('[data-field="price"]')?.closest("label");price?.after?price.after(field):grid.appendChild(field);const st=grid.querySelector('[data-field="status"]');if(st){["open","claimed","in_progress","completed","cancelled"].forEach(x=>{if(![...st.options].some(o=>o.value===x)){const opt=document.createElement("option");opt.value=x;opt.textContent=labelStatus(x);st.appendChild(opt)}});if(!st.value||st.value==="scheduled")st.value=current?.status||"open"}}
+function wrapCrmEdit(){if(typeof window.crmEdit!=="function"||window.crmEdit.__payWrapped)return;const old=window.crmEdit;window.crmEdit=function(kind,id){if(kind==="job")pendingJobId=id||"";const r=old.apply(this,arguments);if(kind==="job"){setTimeout(enhanceJobModal,0);setTimeout(enhanceJobModal,120)}return r};window.crmEdit.__payWrapped=true}
+function table(id,headers,rows,empty){const el=$(id);if(el)el.innerHTML=rows.length?`<table class="dataTable"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`:`<div class="card">${empty}</div>`}
+async function log(text){const ref=doc(db,"shared","activityLog"),snap=await getDoc(ref).catch(()=>null),entries=snap?.exists?.()?(snap.data().entries||[]):[];await setDoc(ref,{entries:[{t:Date.now(),text},...entries].slice(0,150)},{merge:true})}
+function clickNav(page){document.querySelector(`.navBtn[data-page="${page}"]`)?.click()}
+function sameCustomer(c,j){const ca=norm(c.address),ja=norm(j.address);if(ca&&ja&&ca===ja)return true;const cn=norm(c.name),jn=norm(j.customer||j.name||j.title);return!!(cn&&jn&&cn===jn)}
+function norm(v){return String(v||"").trim().toLowerCase().replace(/\s+/g," ")}
+function jobStatus(s){s=String(s||"open").toLowerCase().replace(/\s+/g,"_").replace("-","_");return s==="scheduled"?"open":s}
+function labelStatus(s){return jobStatus(s).replaceAll("_"," ").replace(/^./,c=>c.toUpperCase())}
+function dateVal(v){if(!v)return 0;if(typeof v==="number")return v;if(v.seconds)return v.seconds*1000;const t=new Date(v).getTime();return Number.isFinite(t)?t:0}
+function readableDate(v){const t=dateVal(v);return t?new Date(t).toLocaleString([],{month:"2-digit",day:"2-digit",year:"numeric",hour:"numeric",minute:"2-digit"}):""}
+function chatStamp(v){const t=dateVal(v);if(!t)return"";const d=new Date(t),n=new Date(),day=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime(),today=new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime(),time=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}),diff=Math.round((today-day)/86400000);if(diff<=0)return time;if(diff===1)return`Yesterday ${time}`;if(diff<7)return`${d.toLocaleDateString([],{weekday:"long"})} ${time}`;return`${d.toLocaleDateString([],{month:"2-digit",day:"2-digit",year:"numeric"})} ${time}`}
+function setText(id,v){const el=$(id);if(el)el.textContent=v}
+function setHref(id,v){const el=$(id);if(el)el.href=v}
+function toast(msg){const el=$("toast");if(!el)return;el.textContent=msg;el.classList.remove("hidden");clearTimeout(el._t);el._t=setTimeout(()=>el.classList.add("hidden"),1800)}
