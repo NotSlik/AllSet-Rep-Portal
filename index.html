@@ -1,1 +1,672 @@
-<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>AllSet CRM</title><link rel="stylesheet" href="styles.css" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" /></head><body><div id="gate" class="gate"><div class="gateCard"><div class="brand"><div class="logoDot"></div><div><div class="brandTitle">AllSet CRM</div><div class="brandSub">Live rep portal + business command center.</div></div></div><label for="nicknameInput">Nickname</label><input id="nicknameInput" placeholder="Laith" maxlength="24" /><label for="roleSelect">Role</label><select id="roleSelect"><option value="rep">Rep</option><option value="admin">Admin</option><option value="cleaner">Cleaner</option></select><button id="enterBtn" type="button">Enter CRM</button><div class="gateHint">Uses the same live Firebase map, dots, neighborhoods, presence, and shared data.</div></div></div><div id="app" class="app app--locked"><div class="topbar"><div class="topLeft"><span class="pill">AllSet CRM</span><span class="pill">Rep: <strong id="repName">—</strong></span><span class="pill">Role: <strong id="roleName">—</strong></span><span class="pill hideSmall">Assigned: <strong id="assignedText">None</strong></span></div><div class="topCenter"><input id="globalSearch" placeholder='Search address, customer, phone, or dot label' /><button id="globalSearchBtn" class="ghostBtn" type="button">Search</button></div><div class="topRight"><button id="changeNameBtn" class="chipBtn" type="button">Profile</button><button id="mobileNavBtn" class="chipBtn" type="button">Menu</button></div></div><div class="shell"><aside id="nav" class="nav panel"><div class="panelHeader"><div class="panelTitle">Navigation</div><div class="panelSub">Full AllSet system</div></div><button class="navBtn active" data-page="dashboard">Dashboard</button><button class="navBtn" data-page="map">Live Map</button><button class="navBtn" data-page="leads">Leads</button><button class="navBtn" data-page="jobs">Jobs</button><button class="navBtn" data-page="schedule">Scheduling</button><button class="navBtn" data-page="customers">Customers</button><button class="navBtn" data-page="team">Team</button><button class="navBtn" data-page="leaderboard">Leaderboard</button><button class="navBtn" data-page="board">Board</button><button class="navBtn" data-page="chat">Chat</button><div style="margin:16px 12px 4px;border-top:1px dashed rgba(255,255,255,.12);"></div><button class="navBtn" data-page="payments">Payments</button><button class="navBtn" data-page="equipment">Equipment</button><button class="navBtn" data-page="admin">Admin</button><div class="card navCard"><div class="miniTitle">Online</div><div id="onlineList" class="list compact"></div></div></aside><main class="main"><section id="page-dashboard" class="page active"><div class="pageHeader"><div><h1>Dashboard</h1><p>Live snapshot of knocking, sales, revenue, jobs, and team movement.</p></div><div class="dashActions"><label class="themeSwitch" title="Toggle light mode"><input id="themeToggle" type="checkbox" /><span class="switchTrack"><span class="switchKnob"></span></span></label><button id="quickLeadBtn" class="actionBtn" type="button">+ Quick Lead</button></div></div><div class="statsGrid"><div class="statCard"><span>Today Revenue</span><strong id="statTodayRevenue">$0</strong><small>Completed + sold today</small></div><div class="statCard"><span>Week Revenue</span><strong id="statWeekRevenue">$0</strong><small>All reps combined</small></div><div class="statCard"><span>Sold Dots</span><strong id="statSoldDots">0</strong><small>Map closes</small></div><div class="statCard"><span>Active Jobs</span><strong id="statActiveJobs">0</strong><small>Open, claimed, or active</small></div></div><div class="grid2"><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Leaderboard</div><div class="panelSub">Revenue brought in this week</div></div><div id="podium" class="podium"></div></div><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Weekly Goal Gauge</div><div class="panelSub">Revenue progress toward goal</div></div><div id="goalGauge" class="goalGauge"></div></div><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Pipeline</div><div class="panelSub">Live lead and job counts</div></div><div class="card noMargin"><div class="row"><span class="label">Leads</span><span id="dashLeads" class="value">0</span></div><div class="row"><span class="label">Quotes</span><span id="dashQuotes" class="value">0</span></div><div class="row"><span class="label">Scheduled</span><span id="dashScheduled" class="value">0</span></div><div class="row"><span class="label">Completed</span><span id="dashCompleted" class="value">0</span></div><div class="row"><span class="label">Unpaid</span><span id="dashUnpaid" class="value">0</span></div></div></div></div><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Live Feed</div><button id="clearLogBtn" class="dangerBtn smallBtn" type="button">Clear</button></div><div id="log" class="log wideLog"></div></div></section><section id="page-map" class="page"><div class="mapPageGrid"><aside class="panel mapSide"><div class="panelHeader"><div class="panelTitle">Map Controls</div><div class="panelSub">Same live rep portal data</div></div><div class="card"><div class="miniTitle">Core</div><button id="gpsBtn" class="ghostBtn btnFull" type="button">GPS: Off</button><button id="addDotBtn" class="actionBtn btnFull" type="button">+ Add Dot</button><button id="drawBtn" class="actionBtn btnFull" type="button">✏️ Draw Territory</button><button id="assignAreaBtn" class="ghostBtn btnFull" type="button">Assign Area</button><button id="undoDrawBtn" class="ghostBtn btnFull" type="button">Undo Last Draw</button><button id="clearTerritoriesBtn" class="dangerBtn btnFull" type="button">Clear All Territories</button></div><div class="card"><div class="miniTitle">Search Map</div><input id="searchInput" placeholder='House label: "214 Oak"' /><div class="buttonRow"><button id="searchBtn" class="ghostBtn" type="button">Find</button><button id="clearSearchBtn" class="ghostBtn" type="button">Clear</button></div></div><div class="card"><div class="miniTitle">Counts</div><div class="row"><span class="label">✅ Yes / Closed</span><span id="countYes" class="value">0</span></div><div class="row"><span class="label">❌ No</span><span id="countNo" class="value">0</span></div><div class="row"><span class="label">🏃 Not Home</span><span id="countNotHome" class="value">0</span></div><div class="row"><span class="label">📞 Callback</span><span id="countCallback" class="value">0</span></div><span id="countKnocked" class="hidden">0</span><span id="countSkip" class="hidden">0</span></div><div class="card"><div class="miniTitle">Legend</div><div class="legend"><div class="legItem"><span class="sw sw-yes"></span> Yes / Closed</div><div class="legItem"><span class="sw sw-no"></span> No</div><div class="legItem"><span class="sw sw-nh"></span> Not Home</div><div class="legItem"><span class="sw sw-cb"></span> Callback</div><div class="legItem"><span class="sw sw-none"></span> Unmarked</div></div></div><div class="card"><div class="miniTitle">Areas</div><div id="territoryList" class="territoryList"><div class="muted">No areas drawn yet.</div></div></div></aside><main class="mapWrap"><div id="map"></div></main></div></section><section id="page-leads" class="page tablePage"><div class="pageHeader"><div><h1>Leads</h1><p>Every house/customer opportunity from the map or manual entry.</p></div><button class="actionBtn" data-open="leadModal" type="button">+ Add Lead</button></div><div id="leadsTable" class="tableCard"></div></section><section id="page-jobs" class="page tablePage"><div class="pageHeader"><div><h1>Jobs</h1><p>Schedule work, assign cleaners, mark completed.</p></div><button class="actionBtn" data-open="jobModal" type="button">+ Add Job</button></div><div id="jobsTable" class="tableCard"></div></section><section id="page-schedule" class="page tablePage"><div class="pageHeader"><div><h1>Scheduling</h1><p>Workers add weekly availability to the team schedule.</p></div><div class="buttonRow" style="max-width:340px"><button id="deleteScheduleBtn" class="dangerBtn" type="button">Delete My Schedule</button><button id="saveScheduleBtn" class="actionBtn" type="button">Save My Schedule</button></div></div><div class="grid2"><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">My Weekly Availability</div><div class="panelSub">Pick free/busy and time windows</div></div><div id="mySchedule" class="scheduleEditor"></div></div><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Team Schedule Board</div><div class="panelSub">Live saved schedules</div></div><div id="teamSchedule" class="scheduleBoard"></div></div></div></section><section id="page-customers" class="page tablePage"><div class="pageHeader"><div><h1>Customers</h1><p>Lifetime customer database and recurring service memory.</p></div><button class="actionBtn" data-open="customerModal" type="button">+ Add Customer</button></div><div id="customersTable" class="tableCard"></div></section><section id="page-team" class="page tablePage"><div class="pageHeader"><div><h1>Team</h1><p>Rep sales, commissions, close rate, and cleaner work.</p></div><button class="actionBtn" data-open="teamModal" type="button">+ Add Team Member</button></div><div id="teamTable" class="tableCard"></div></section><section id="page-leaderboard" class="page tablePage"><div class="pageHeader"><div><h1>Leaderboard</h1><p>Rep revenue, sold jobs, converted leads, and close rate.</p></div></div><div id="leaderboardTable" class="tableCard"></div></section><section id="page-board" class="page tablePage"><div class="pageHeader"><div><h1>Board</h1><p>Cleaner claimed jobs, completed jobs, and basic reliability counts.</p></div></div><div id="boardTable" class="tableCard"></div></section><section id="page-chat" class="page tablePage"><div class="pageHeader"><div><h1>Chat</h1><p>Team channels for sales, cleaning, general updates, and announcements.</p></div></div><div class="chatShell panel softPanel"><div class="chatChannels"><button class="chatChannel active" data-channel="General" type="button">General</button><button class="chatChannel" data-channel="Sales" type="button">Sales</button><button class="chatChannel" data-channel="Cleaning" type="button">Cleaning</button><button class="chatChannel" data-channel="Announcements" type="button">Announcements</button></div><div id="chatMessages" class="chatMessages"></div><div class="chatComposer"><input id="chatInput" placeholder="Message the team" /><button id="chatSendBtn" class="actionBtn" type="button">Send</button></div></div></section><section id="page-payments" class="page tablePage"><div class="pageHeader"><div><h1>Payments</h1><p>Worker payment options and admin payment manager.</p></div><button class="actionBtn adminOnly" data-open="paymentModal" type="button">+ Add Payment</button></div><div class="paymentLinks panel softPanel"><div class="panelHeader"><div class="panelTitle">Quick Payment Buttons</div><div class="panelSub">Customer-facing collection options</div></div><div class="payGrid"><a id="cashAppLink" class="payBtn" target="_blank">Cash App<br><small id="cashAppTag">$AllSet</small></a><a id="venmoLink" class="payBtn" target="_blank">Venmo<br><small id="venmoTag">@AllSet</small></a><a id="paypalLink" class="payBtn" target="_blank">PayPal<br><small id="paypalTag">paypal.me/AllSet</small></a><div class="payBtn" title="Copy manually">Zelle<br><small id="zelleTag">allset@example.com</small></div></div></div><div id="paymentsTable" class="tableCard adminOnly"></div></section><section id="page-equipment" class="page tablePage"><div class="pageHeader"><div><h1>Equipment</h1><p>Locker access, DI systems, checkout status, and tracker notes.</p></div><button class="actionBtn" data-open="equipmentModal" type="button">+ Add Equipment</button></div><div id="equipmentTable" class="tableCard"></div></section><section id="page-admin" class="page tablePage"><div class="pageHeader"><div><h1>Admin</h1><p>Settings, payment tags, lock codes, and live system controls.</p></div><button id="saveSettingsBtn" class="actionBtn" type="button">Save Settings</button></div><div class="grid2"><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Payment Settings</div></div><div class="formGrid card noMargin"><label>Cash App Tag<input id="setCashApp" placeholder="$AllSet" /></label><label>Venmo Tag<input id="setVenmo" placeholder="@AllSet" /></label><label>PayPal Link/Tag<input id="setPaypal" placeholder="paypal.me/AllSet" /></label><label>Zelle Info<input id="setZelle" placeholder="phone/email" /></label><label>Cash App QR URL<input id="setCashAppQr" placeholder="https://..." /></label><label>Venmo QR URL<input id="setVenmoQr" placeholder="https://..." /></label><label>PayPal QR URL<input id="setPaypalQr" placeholder="https://..." /></label><label>Zelle QR URL<input id="setZelleQr" placeholder="https://..." /></label><label>Weekly Revenue Goal<input id="setWeeklyGoal" type="number" placeholder="ex: 5000" /></label></div></div><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Equipment Access</div></div><div class="formGrid card noMargin"><label>Locker Location<input id="setLocker" placeholder="Storage address / garage" /></label><label>Door Code<input id="setDoorCode" placeholder="rotating code" /></label><label>Tracker Note<input id="setTrackerNote" placeholder="DI trackers hidden under frame" /></label></div></div></div><div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">System Maintenance</div></div><div class="card noMargin"><button id="resetMyProfileBtn" class="dangerBtn" type="button">Reset My Profile Login</button><span class="muted padLeft">Does not delete shared CRM/map data.</span></div></div></section></main></div><button id="reviewHandle" class="reviewHandle" type="button">Review</button><div id="toast" class="toast hidden"></div></div><div id="modalBackdrop" class="modalBackdrop hidden"><div id="modalCard" class="modalCard"></div></div><div id="reviewOverlay" class="reviewOverlay hidden"><div class="reviewCard"><div id="reviewLogin"><h2>Monthly Income Review</h2><p class="muted">Enter access code.</p><input id="reviewPassword" type="password" placeholder="Password" /><button id="reviewEnterBtn" class="actionBtn btnFull" type="button">Open</button></div><div id="reviewEdit" class="hidden"><div class="reviewTop"><div><h2>Monthly Income Review</h2><p class="muted">Edit display numbers.</p></div><button id="reviewCloseBtn" class="ghostBtn" type="button">Close</button></div><div class="formGrid"><label>Monthly Revenue<input id="reviewRevenue" type="number" /></label><label>Net Profit<input id="reviewProfit" type="number" /></label><label>Recurring Revenue<input id="reviewRecurring" type="number" /></label><label>Jobs Completed<input id="reviewJobs" type="number" /></label><label>Doors Knocked<input id="reviewDoors" type="number" /></label><label>Close Rate %<input id="reviewCloseRate" type="number" /></label></div><button id="reviewUpdateBtn" class="actionBtn btnFull" type="button">Update Screen</button></div><div id="reviewDisplay" class="hidden"><div class="reviewTop"><div><h2>Monthly Income Review</h2><p class="muted">AllSet performance summary</p></div><button id="reviewBackBtn" class="ghostBtn" type="button">Back</button></div><div id="reviewNumbers" class="reviewNumbers"></div></div></div></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script><script type="module" src="app.js"></script><script type="module" src="ops.js"></script></body></html>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AllSet CRM</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+</head>
+<body>
+
+  <!-- ENTRANCE GATE -->
+  <div id="gate" class="gate">
+    <div class="gateCard">
+      <div class="brand">
+        <div class="logoDot"></div>
+        <div>
+          <div class="brandTitle">AllSet CRM</div>
+          <div class="brandSub">Live rep portal + business command center.</div>
+        </div>
+      </div>
+      <label for="nicknameInput">Nickname</label>
+      <input id="nicknameInput" placeholder="Laith" maxlength="24" />
+      <label for="roleSelect">Role</label>
+      <select id="roleSelect">
+        <option value="rep">Rep</option>
+        <option value="admin">Admin</option>
+        <option value="cleaner">Cleaner</option>
+      </select>
+      <button id="enterBtn" type="button">Enter CRM</button>
+      <div class="gateHint">Uses the same live Firebase map, dots, neighborhoods, presence, and shared data.</div>
+    </div>
+  </div>
+
+  <!-- MAIN APP SHELL -->
+  <div id="app" class="app app--locked">
+    <div class="topbar">
+      <div class="topLeft">
+        <span class="pill">AllSet CRM</span>
+        <span class="pill">Rep: <strong id="repName">—</strong></span>
+        <span class="pill">Role: <strong id="roleName">—</strong></span>
+        <span class="pill hideSmall">Assigned: <strong id="assignedText">None</strong></span>
+      </div>
+      <div class="topCenter">
+        <input id="globalSearch" placeholder='Search address, customer, phone, or dot label' />
+        <button id="globalSearchBtn" class="ghostBtn" type="button">Search</button>
+      </div>
+      <div class="topRight">
+        <button id="changeNameBtn" class="chipBtn" type="button">Profile</button>
+        <button id="mobileNavBtn" class="chipBtn" type="button">Menu</button>
+      </div>
+    </div>
+
+    <div class="shell">
+      <!-- NAVIGATION -->
+      <aside id="nav" class="nav panel">
+        <div class="panelHeader">
+          <div class="panelTitle">Navigation</div>
+          <div class="panelSub">Full AllSet system</div>
+        </div>
+        <button class="navBtn active" data-page="dashboard">Dashboard</button>
+        <button class="navBtn" data-page="map">Live Map</button>
+        <button class="navBtn" data-page="leads">Leads</button>
+        <button class="navBtn" data-page="jobs">Jobs</button>
+        <button class="navBtn" data-page="schedule">Scheduling</button>
+        <button class="navBtn" data-page="customers">Customers</button>
+        <button class="navBtn" data-page="team">Team</button>
+        <button class="navBtn" data-page="leaderboard">Leaderboard</button>
+        <button class="navBtn" data-page="board">Board</button>
+        <button class="navBtn" data-page="chat">Chat</button>
+        <div style="margin:16px 12px 4px;border-top:1px dashed rgba(255,255,255,.12);"></div>
+        <button class="navBtn" data-page="payments">Payments</button>
+        <button class="navBtn" data-page="equipment">Equipment</button>
+        <button class="navBtn" data-page="admin">Admin</button>
+        <div class="card navCard">
+          <div class="miniTitle">Online</div>
+          <div id="onlineList" class="list compact"></div>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT PAGES -->
+      <main class="main">
+        
+        <!-- DASHBOARD -->
+        <section id="page-dashboard" class="page active">
+          <div class="pageHeader">
+            <div>
+              <h1>Dashboard</h1>
+              <p>Live snapshot of knocking, sales, revenue, jobs, and team movement.</p>
+            </div>
+            <div class="dashActions">
+              <label class="themeSwitch" title="Toggle light mode">
+                <input id="themeToggle" type="checkbox" />
+                <span class="switchTrack"><span class="switchKnob"></span></span>
+              </label>
+              <button id="quickLeadBtn" class="actionBtn" type="button">+ Quick Lead</button>
+            </div>
+          </div>
+          <div class="statsGrid">
+            <div class="statCard"><span>Today Revenue</span><strong id="statTodayRevenue">$0</strong><small>Completed + sold today</small></div>
+            <div class="statCard"><span>Week Revenue</span><strong id="statWeekRevenue">$0</strong><small>All reps combined</small></div>
+            <div class="statCard"><span>Sold Dots</span><strong id="statSoldDots">0</strong><small>Map closes</small></div>
+            <div class="statCard"><span>Active Jobs</span><strong id="statActiveJobs">0</strong><small>Open, claimed, or active</small></div>
+          </div>
+          <div class="grid2">
+            <div class="panel softPanel">
+              <div class="panelHeader"><div class="panelTitle">Leaderboard</div><div class="panelSub">Revenue brought in this week</div></div>
+              <div id="podium" class="podium"></div>
+            </div>
+            <div class="panel softPanel">
+              <div class="panelHeader"><div class="panelTitle">Weekly Goal Gauge</div><div class="panelSub">Revenue progress toward goal</div></div>
+              <div id="goalGauge" class="goalGauge"></div>
+            </div>
+            <div class="panel softPanel">
+              <div class="panelHeader"><div class="panelTitle">Pipeline</div><div class="panelSub">Live lead and job counts</div></div>
+              <div class="card noMargin">
+                <div class="row"><span class="label">Leads</span><span id="dashLeads" class="value">0</span></div>
+                <div class="row"><span class="label">Quotes</span><span id="dashQuotes" class="value">0</span></div>
+                <div class="row"><span class="label">Scheduled</span><span id="dashScheduled" class="value">0</span></div>
+                <div class="row"><span class="label">Completed</span><span id="dashCompleted" class="value">0</span></div>
+                <div class="row"><span class="label">Unpaid</span><span id="dashUnpaid" class="value">0</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel softPanel">
+            <div class="panelHeader"><div class="panelTitle">Live Feed</div><button id="clearLogBtn" class="dangerBtn smallBtn" type="button">Clear</button></div>
+            <div id="log" class="log wideLog"></div>
+          </div>
+        </section>
+
+        <!-- LIVE MAP -->
+        <section id="page-map" class="page">
+          <div class="mapPageGrid">
+            <aside class="panel mapSide">
+              <div class="panelHeader"><div class="panelTitle">Map Controls</div><div class="panelSub">Same live rep portal data</div></div>
+              <div class="card">
+                <div class="miniTitle">Core</div>
+                <button id="gpsBtn" class="ghostBtn btnFull" type="button">GPS: Off</button>
+                <button id="addDotBtn" class="actionBtn btnFull" type="button">+ Add Dot</button>
+                <button id="drawBtn" class="actionBtn btnFull" type="button">✏️ Draw Territory</button>
+                <button id="assignAreaBtn" class="ghostBtn btnFull" type="button">Assign Area</button>
+                <button id="undoDrawBtn" class="ghostBtn btnFull" type="button">Undo Last Draw</button>
+                <button id="clearTerritoriesBtn" class="dangerBtn btnFull" type="button">Clear All Territories</button>
+              </div>
+              <div class="card">
+                <div class="miniTitle">Search Map</div>
+                <input id="searchInput" placeholder='House label: "214 Oak"' />
+                <div class="buttonRow">
+                  <button id="searchBtn" class="ghostBtn" type="button">Find</button>
+                  <button id="clearSearchBtn" class="ghostBtn" type="button">Clear</button>
+                </div>
+              </div>
+              <div class="card">
+                <div class="miniTitle">Counts</div>
+                <div class="row"><span class="label">✅ Yes / Closed</span><span id="countYes" class="value">0</span></div>
+                <div class="row"><span class="label">❌ No</span><span id="countNo" class="value">0</span></div>
+                <div class="row"><span class="label">🏃 Not Home</span><span id="countNotHome" class="value">0</span></div>
+                <div class="row"><span class="label">📞 Callback</span><span id="countCallback" class="value">0</span></div>
+                <span id="countKnocked" class="hidden">0</span><span id="countSkip" class="hidden">0</span>
+              </div>
+              <div class="card">
+                <div class="miniTitle">Legend</div>
+                <div class="legend">
+                  <div class="legItem"><span class="sw sw-yes"></span> Yes / Closed</div>
+                  <div class="legItem"><span class="sw sw-no"></span> No</div>
+                  <div class="legItem"><span class="sw sw-nh"></span> Not Home</div>
+                  <div class="legItem"><span class="sw sw-cb"></span> Callback</div>
+                  <div class="legItem"><span class="sw sw-none"></span> Unmarked</div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="miniTitle">Areas</div>
+                <div id="territoryList" class="territoryList"><div class="muted">No areas drawn yet.</div></div>
+              </div>
+            </aside>
+            <main class="mapWrap"><div id="map"></div></main>
+          </div>
+        </section>
+
+        <!-- DATA TABLES & OTHER PAGES -->
+        <section id="page-leads" class="page tablePage">
+          <div class="pageHeader"><div><h1>Leads</h1><p>Every house/customer opportunity from the map or manual entry.</p></div><button class="actionBtn" data-open="leadModal" type="button">+ Add Lead</button></div>
+          <div id="leadsTable" class="tableCard"></div>
+        </section>
+
+        <section id="page-jobs" class="page tablePage">
+          <div class="pageHeader"><div><h1>Jobs</h1><p>Schedule work, assign cleaners, mark completed.</p></div><button class="actionBtn" data-open="jobModal" type="button">+ Add Job</button></div>
+          <div id="jobsTable" class="tableCard"></div>
+        </section>
+
+        <section id="page-schedule" class="page tablePage">
+          <div class="pageHeader"><div><h1>Scheduling</h1><p>Workers add weekly availability to the team schedule.</p></div><div class="buttonRow" style="max-width:340px"><button id="deleteScheduleBtn" class="dangerBtn" type="button">Delete My Schedule</button><button id="saveScheduleBtn" class="actionBtn" type="button">Save My Schedule</button></div></div>
+          <div class="grid2">
+            <div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">My Weekly Availability</div></div><div id="mySchedule" class="scheduleEditor"></div></div>
+            <div class="panel softPanel"><div class="panelHeader"><div class="panelTitle">Team Schedule Board</div></div><div id="teamSchedule" class="scheduleBoard"></div></div>
+          </div>
+        </section>
+
+        <section id="page-customers" class="page tablePage">
+          <div class="pageHeader"><div><h1>Customers</h1><p>Lifetime customer database and recurring service memory.</p></div><button class="actionBtn" data-open="customerModal" type="button">+ Add Customer</button></div>
+          <div id="customersTable" class="tableCard"></div>
+        </section>
+
+        <section id="page-team" class="page tablePage">
+          <div class="pageHeader"><div><h1>Team</h1><p>Rep sales, commissions, close rate, and cleaner work.</p></div><button class="actionBtn" data-open="teamModal" type="button">+ Add Team Member</button></div>
+          <div id="teamTable" class="tableCard"></div>
+        </section>
+
+        <section id="page-leaderboard" class="page tablePage">
+          <div class="pageHeader"><div><h1>Leaderboard</h1><p>Rep revenue, sold jobs, converted leads, and close rate.</p></div></div>
+          <div id="leaderboardTable" class="tableCard"></div>
+        </section>
+
+        <section id="page-board" class="page tablePage">
+          <div class="pageHeader"><div><h1>Board</h1><p>Cleaner claimed jobs, completed jobs, and basic reliability counts.</p></div></div>
+          <div id="boardTable" class="tableCard"></div>
+        </section>
+
+        <!-- CHAT INTERFACE -->
+        <section id="page-chat" class="page tablePage">
+          <div class="pageHeader"><div><h1>Chat</h1><p>Team channels for sales, cleaning, general updates, and announcements.</p></div></div>
+          <div class="chatShell panel softPanel">
+            <div class="chatChannels">
+              <button class="chatChannel active" data-channel="General" type="button">General</button>
+              <button class="chatChannel" data-channel="Sales" type="button">Sales</button>
+              <button class="chatChannel" data-channel="Cleaning" type="button">Cleaning</button>
+              <button class="chatChannel" data-channel="Announcements" type="button">Announcements</button>
+            </div>
+            <div id="chatMessages" class="chatMessages"></div>
+            <div class="chatComposer">
+              <input id="chatInput" placeholder="Message the team" />
+              <button id="chatSendBtn" class="actionBtn" type="button">Send</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAYMENTS -->
+        <section id="page-payments" class="page tablePage">
+          <div class="pageHeader"><div><h1>Payments</h1><p>Worker payment options and admin payment manager.</p></div><button class="actionBtn adminOnly" data-open="paymentModal" type="button">+ Add Payment</button></div>
+          <div class="paymentLinks panel softPanel">
+            <div class="panelHeader"><div class="panelTitle">Quick Payment Buttons</div></div>
+            <div class="payGrid">
+              <a id="cashAppLink" class="payBtn" target="_blank">Cash App<br><small id="cashAppTag">$AllSet</small></a>
+              <a id="venmoLink" class="payBtn" target="_blank">Venmo<br><small id="venmoTag">@AllSet</small></a>
+              <a id="paypalLink" class="payBtn" target="_blank">PayPal<br><small id="paypalTag">paypal.me/AllSet</small></a>
+              <div class="payBtn" title="Copy manually">Zelle<br><small id="zelleTag">allset@example.com</small></div>
+            </div>
+          </div>
+          <div id="paymentsTable" class="tableCard adminOnly"></div>
+        </section>
+
+        <!-- EQUIPMENT -->
+        <section id="page-equipment" class="page tablePage">
+          <div class="pageHeader"><div><h1>Equipment</h1><p>Locker access, DI systems, checkout status, and tracker notes.</p></div><button class="actionBtn" data-open="equipmentModal" type="button">+ Add Equipment</button></div>
+          <div id="equipmentTable" class="tableCard"></div>
+        </section>
+
+        <!-- ADMIN PANEL -->
+        <section id="page-admin" class="page tablePage">
+          <div class="pageHeader"><div><h1>Admin</h1><p>Settings, payment tags, lock codes, and live system controls.</p></div><button id="saveSettingsBtn" class="actionBtn" type="button">Save Settings</button></div>
+          <div class="grid2">
+            <div class="panel softPanel">
+              <div class="panelHeader"><div class="panelTitle">Payment Settings</div></div>
+              <div class="formGrid card noMargin">
+                <label>Cash App Tag<input id="setCashApp" placeholder="$AllSet" /></label>
+                <label>Venmo Tag<input id="setVenmo" placeholder="@AllSet" /></label>
+                <label>PayPal Link/Tag<input id="setPaypal" placeholder="paypal.me/AllSet" /></label>
+                <label>Zelle Info<input id="setZelle" placeholder="phone/email" /></label>
+                <label>Cash App QR URL<input id="setCashAppQr" placeholder="https://..." /></label>
+                <label>Venmo QR URL<input id="setVenmoQr" placeholder="https://..." /></label>
+                <label>PayPal QR URL<input id="setPaypalQr" placeholder="https://..." /></label>
+                <label>Zelle QR URL<input id="setZelleQr" placeholder="https://..." /></label>
+                <label>Weekly Revenue Goal<input id="setWeeklyGoal" type="number" placeholder="ex: 5000" /></label>
+              </div>
+            </div>
+            <div class="panel softPanel">
+              <div class="panelHeader"><div class="panelTitle">Equipment Access</div></div>
+              <div class="formGrid card noMargin">
+                <label>Locker Location<input id="setLocker" placeholder="Storage address / garage" /></label>
+                <label>Door Code<input id="setDoorCode" placeholder="rotating code" /></label>
+                <label>Tracker Note<input id="setTrackerNote" placeholder="DI trackers hidden under frame" /></label>
+              </div>
+            </div>
+          </div>
+          <div class="panel softPanel">
+            <div class="panelHeader"><div class="panelTitle">System Maintenance</div></div>
+            <div class="card noMargin">
+              <button id="resetMyProfileBtn" class="dangerBtn" type="button">Reset My Profile Login</button>
+              <span class="muted padLeft">Does not delete shared CRM/map data.</span>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <button id="reviewHandle" class="reviewHandle" type="button">Review</button>
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <!-- BACKDROPS & OVERLAYS -->
+  <div id="modalBackdrop" class="modalBackdrop hidden"><div id="modalCard" class="modalCard"></div></div>
+  
+  <div id="reviewOverlay" class="reviewOverlay hidden">
+    <div class="reviewCard">
+      <div id="reviewLogin">
+        <h2>Monthly Income Review</h2>
+        <p class="muted">Enter access code.</p>
+        <input id="reviewPassword" type="password" placeholder="Password" />
+        <button id="reviewEnterBtn" class="actionBtn btnFull" type="button">Open</button>
+      </div>
+      <div id="reviewEdit" class="hidden">
+        <div class="reviewTop">
+          <div><h2>Monthly Income Review</h2><p class="muted">Edit display numbers.</p></div>
+          <button id="reviewCloseBtn" class="ghostBtn" type="button">Close</button>
+        </div>
+        <div class="formGrid">
+          <label>Monthly Revenue<input id="reviewRevenue" type="number" /></label>
+          <label>Net Profit<input id="reviewProfit" type="number" /></label>
+          <label>Recurring Revenue<input id="reviewRecurring" type="number" /></label>
+          <label>Jobs Completed<input id="reviewJobs" type="number" /></label>
+          <label>Doors Knocked<input id="reviewDoors" type="number" /></label>
+          <label>Close Rate %<input id="reviewCloseRate" type="number" /></label>
+        </div>
+        <button id="reviewUpdateBtn" class="actionBtn btnFull" type="button">Update Screen</button>
+      </div>
+      <div id="reviewDisplay" class="hidden">
+        <div class="reviewTop">
+          <div><h2>Monthly Income Review</h2><p class="muted">AllSet performance summary</p></div>
+          <button id="reviewBackBtn" class="ghostBtn" type="button">Back</button>
+        </div>
+        <div id="reviewNumbers" class="reviewNumbers"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ASYNC LIBS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script type="module" src="app.js"></script>
+
+  <!-- EMBEDDED OPERATIONS ENGINE -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, addDoc, query, orderBy, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
+      authDomain: "allsetrepportal.firebaseapp.com",
+      projectId: "allsetrepportal",
+      storageBucket: "allsetrepportal.firebasestorage.app",
+      messagingSenderId: "590070052736",
+      appId: "1:590070052736:web:193a9edb6fd378fbd27365",
+      measurementId: "G-SY45913J3Z",
+      databaseURL: "https://allsetrepportal-default-rtdb.firebaseio.com"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Dynamic State Caches
+    let currentChannel = "General";
+    let leadsData = {};
+    let jobsData = {};
+    let repsData = {};
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (str) => String(str ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+    const money = (n) => "$" + Number(n || 0).toLocaleString();
+
+    // Init Drivers
+    initChat();
+    initDataWatchers();
+    initExtraAdminAndMapControls();
+
+    /* ==========================================
+       1. REAL-TIME MULTICHANNEL CHAT ENGINE
+       ========================================== */
+    function initChat() {
+      const chatInput = $("chatInput");
+      const chatSendBtn = $("chatSendBtn");
+      
+      document.querySelectorAll(".chatChannel").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".chatChannel").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          currentChannel = btn.dataset.channel;
+          loadChatMessages();
+        });
+      });
+
+      if (chatSendBtn && chatInput) {
+        const sendMessage = async () => {
+          const text = chatInput.value.trim();
+          if (!text) return;
+          
+          const senderName = localStorage.getItem("allset_rep_name") || "Anonymous";
+          chatInput.value = "";
+          
+          try {
+            await addDoc(collection(db, "chat_messages"), {
+              channel: currentChannel,
+              sender: senderName,
+              text: text,
+              createdAt: Date.now()
+            });
+          } catch (err) {
+            console.error("Chat drop failure:", err);
+          }
+        };
+
+        chatSendBtn.addEventListener("click", sendMessage);
+        chatInput.addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
+      }
+
+      loadChatMessages();
+    }
+
+    function loadChatMessages() {
+      const chatMessagesEl = $("chatMessages");
+      if (!chatMessagesEl) return;
+
+      const q = query(collection(db, "chat_messages"), orderBy("createdAt", "asc"));
+      
+      onSnapshot(q, (snapshot) => {
+        chatMessagesEl.innerHTML = "";
+        let hasMessages = false;
+
+        snapshot.forEach(docSnap => {
+          const msg = docSnap.data();
+          if (msg.channel !== currentChannel) return;
+          hasMessages = true;
+
+          const item = document.createElement("div");
+          item.className = "logItem";
+          
+          const timeStr = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+          item.innerHTML = `<span class="muted">[${timeStr}]</span> <b>${esc(msg.sender)}:</b> ${esc(msg.text)}`;
+          chatMessagesEl.appendChild(item);
+        });
+
+        if (!hasMessages) {
+          chatMessagesEl.innerHTML = `<div class="muted" style="padding:12px;">No messages in #${currentChannel} yet.</div>`;
+        }
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      });
+    }
+
+    /* ==========================================
+       2. FIRESTORE REAL-TIME SNAPSHOT WATCHERS
+       ========================================== */
+    function initDataWatchers() {
+      onSnapshot(collection(db, "leads"), snap => {
+        leadsData = {}; snap.forEach(d => leadsData[d.id] = d.data());
+        renderLeaderboard();
+      });
+      onSnapshot(collection(db, "jobs"), snap => {
+        jobsData = {}; snap.forEach(d => jobsData[d.id] = d.data());
+        renderLeaderboard();
+        renderCleanerBoard();
+      });
+      onSnapshot(collection(db, "reps"), snap => {
+        repsData = {}; snap.forEach(d => repsData[d.id] = d.data());
+        renderLeaderboard();
+      });
+      onSnapshot(doc(db, "shared", "settings"), snap => {
+        if (snap.exists()) applyExtendedSettings(snap.data());
+      });
+    }
+
+    /* ==========================================
+       3. EXTENDED REP PERFORMANCE LEADERBOARD
+       ========================================== */
+    function renderLeaderboard() {
+      const target = $("leaderboardTable");
+      if (!target) return;
+
+      const statsByRep = {};
+
+      Object.values(repsData).forEach(r => {
+        if (r.name) statsByRep[r.name] = { revenue: 0, sold: 0, converted: 0, totalLeads: 0 };
+      });
+
+      Object.values(leadsData).forEach(l => {
+        const repName = l.repName || repsData[l.repId]?.name || l.createdBy || "House";
+        if (!statsByRep[repName]) statsByRep[repName] = { revenue: 0, sold: 0, converted: 0, totalLeads: 0 };
+        
+        statsByRep[repName].totalLeads++;
+        if (l.status === "sold") statsByRep[repName].sold++;
+        if (l.status === "converted") statsByRep[repName].converted++;
+        statsByRep[repName].revenue += Number(l.quote || l.amount || 0);
+      });
+
+      Object.values(jobsData).forEach(j => {
+        const repName = j.repName || repsData[j.repId]?.name || "House";
+        if (!statsByRep[repName]) statsByRep[repName] = { revenue: 0, sold: 0, converted: 0, totalLeads: 0 };
+        statsByRep[repName].revenue += Number(j.price || 0);
+      });
+
+      const rows = Object.entries(statsByRep)
+        .sort((a, b) => b[1].revenue - a[1].revenue)
+        .map(([name, data]) => {
+          const baseKnocks = data.totalLeads || 1;
+          const closeRate = Math.round(((data.sold + data.converted) / baseKnocks) * 100);
+          return `<tr>
+            <td><strong>${esc(name)}</strong></td>
+            <td>${money(data.revenue)}</td>
+            <td>${data.sold}</td>
+            <td>${data.converted}</td>
+            <td>${closeRate}%</td>
+          </tr>`;
+        });
+
+      if (!rows.length) {
+        target.innerHTML = `<div class="card">No team metrics generated yet.</div>`;
+        return;
+      }
+
+      target.innerHTML = `<table class="dataTable">
+        <thead>
+          <tr>
+            <th>Rep Name</th>
+            <th>Revenue</th>
+            <th>Sold Jobs</th>
+            <th>Converted Leads</th>
+            <th>Close Rate</th>
+          </tr>
+        </thead>
+        <tbody>${rows.join("")}</tbody>
+      </table>`;
+    }
+
+    /* ==========================================
+       4. CLEANER OPERATION TRACKING GRID
+       ========================================== */
+    function renderCleanerBoard() {
+      const target = $("boardTable");
+      if (!target) return;
+
+      const statsByCleaner = {};
+
+      Object.values(jobsData).forEach(j => {
+        const cleaner = (j.cleaner || "").trim();
+        if (!cleaner) return;
+
+        if (!statsByCleaner[cleaner]) {
+          statsByCleaner[cleaner] = { claimed: 0, completed: 0, reliability: 100 };
+        }
+
+        statsByCleaner[cleaner].claimed++;
+        if (j.status === "completed") {
+          statsByCleaner[cleaner].completed++;
+        } else if (j.status === "cancelled") {
+          statsByCleaner[cleaner].reliability = Math.max(0, statsByCleaner[cleaner].reliability - 15);
+        }
+      });
+
+      const rows = Object.entries(statsByCleaner).map(([name, data]) => {
+        return `<tr>
+          <td><strong>${esc(name)}</strong></td>
+          <td>${data.claimed}</td>
+          <td>${data.completed}</td>
+          <td>${data.reliability}%</td>
+        </tr>`;
+      });
+
+      if (!rows.length) {
+        target.innerHTML = `<div class="card">No active crew claims registered.</div>`;
+        return;
+      }
+
+      target.innerHTML = `<table class="dataTable">
+        <thead>
+          <tr>
+            <th>Cleaner Name</th>
+            <th>Claimed Assignments</th>
+            <th>Completed Jobs</th>
+            <th>Reliability Rating</th>
+          </tr>
+        </thead>
+        <tbody>${rows.join("")}</tbody>
+      </table>`;
+    }
+
+    /* ==========================================
+       5. DYNAMIC PAYMENT & QR SYNCHRONIZER
+       ========================================== */
+    function applyExtendedSettings(settings) {
+      if ($("paypalTag")) $("paypalTag").textContent = settings.paypal || "paypal.me/AllSet";
+      if ($("paypalLink")) $("paypalLink").href = settings.paypal ? `https://${settings.paypal}` : "https://paypal.me/AllSet";
+      
+      if ($("setPaypal")) $("setPaypal").value = settings.paypal || "";
+      if ($("setCashAppQr")) $("setCashAppQr").value = settings.cashAppQr || "";
+      if ($("setVenmoQr")) $("setVenmoQr").value = settings.venmoQr || "";
+      if ($("setPaypalQr")) $("setPaypalQr").value = settings.paypalQr || "";
+      if ($("setZelleQr")) $("setZelleQr").value = settings.zelleQr || "";
+    }
+
+    /* ==========================================
+       6. SYSTEM OVERRIDES & TERRITORY MANAGEMENT
+       ========================================== */
+    function initExtraAdminAndMapControls() {
+      const saveBtn = $("saveSettingsBtn");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", async () => {
+          const extendedPayload = {
+            paypal: $("setPaypal")?.value || "",
+            cashAppQr: $("setCashAppQr")?.value || "",
+            venmoQr: $("setVenmoQr")?.value || "",
+            paypalQr: $("setPaypalQr")?.value || "",
+            zelleQr: $("setZelleQr")?.value || ""
+          };
+          try {
+            await setDoc(doc(db, "shared", "settings"), extendedPayload, { merge: true });
+          } catch (err) {
+            console.warn("Silent admin update execution notice:", err.message);
+          }
+        });
+      }
+
+      // Drop Entire Boundaries Collection
+      const clearTerritoriesBtn = $("clearTerritoriesBtn");
+      if (clearTerritoriesBtn) {
+        clearTerritoriesBtn.addEventListener("click", async () => {
+          if (!confirm("⚠️ Are you absolutely sure you want to completely wipe ALL mapped boundaries? This can't be undone.")) return;
+          try {
+            const snap = await getDocs(collection(db, "neighborhoods"));
+            const batch = writeBatch(db);
+            snap.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            alert("Success: All regional boundaries dropped.");
+          } catch (err) {
+            alert("Erase failed: " + err.message);
+          }
+        });
+      }
+
+      // Undo Last Boundary Strip Hook
+      const undoDrawBtn = $("undoDrawBtn");
+      if (undoDrawBtn) {
+        undoDrawBtn.addEventListener("click", async () => {
+          const currentUser = localStorage.getItem("allset_rep_name") || "";
+          if (!currentUser) return alert("Error: Identify your profile handle before attempting map rewrites.");
+
+          try {
+            const snap = await getDocs(collection(db, "neighborhoods"));
+            let userTarget = null;
+            
+            snap.forEach(d => {
+              const item = d.data();
+              if (item.createdBy === currentUser) {
+                if (!userTarget || item.createdAt > userTarget.createdAt) {
+                  userTarget = { id: d.id, ...item };
+                }
+              }
+            });
+
+            if (userTarget) {
+              await deleteDoc(doc(db, "neighborhoods", userTarget.id));
+              alert(`Undone: Dropped your last drawn territory "${userTarget.name}"`);
+            } else {
+              alert("No recent territory records identified matching your nickname context.");
+            }
+          } catch (err) {
+            console.error("Undo routine caught an exception:", err);
+          }
+        });
+      }
+    }
+  </script>
+</body>
+</html>
