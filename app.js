@@ -48,8 +48,14 @@ async function boot(){
   initMap();
   applyTheme(localStorage.getItem(LS_THEME) || "dark");
   const savedName = localStorage.getItem(LS_NAME);
-  const savedRole = localStorage.getItem(LS_ROLE) || "rep";
-  if(savedName) nicknameInput.value = savedName;
+  let savedRole = localStorage.getItem(LS_ROLE) || "rep";
+  
+  if(savedName) {
+    nicknameInput.value = savedName;
+    if(savedName.toLowerCase() === "laith") {
+      savedRole = "admin";
+    }
+  }
   roleSelect.value = savedRole;
   lockApp(true);
   signInAnonymously(auth).catch(err => console.warn("Firebase auth:", err.message));
@@ -58,7 +64,7 @@ async function boot(){
       currentUid = user.uid;
       if(savedName){
         currentName = savedName;
-        currentRole = savedRole;
+        currentRole = savedName.toLowerCase() === "laith" ? "admin" : savedRole;
         completeLogin();
         try{
           await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name:currentName,role:currentRole,updatedAt:serverTimestamp()},{merge:true});
@@ -79,7 +85,7 @@ function initStaticEvents(){
   if (mobileNavBtn) mobileNavBtn.addEventListener("click", () => nav.classList.toggle("open"));
   
   document.querySelectorAll(".navBtn").forEach(btn => btn.addEventListener("click", () => {
-    if(btn.dataset.locked){
+    if(btn.dataset.locked && currentRole !== "admin"){
       const code = prompt("Enter access code:");
       if(code !== "2122"){ toast("Wrong code"); return; }
       btn.dataset.locked = "";
@@ -116,14 +122,19 @@ function initStaticEvents(){
 async function handleEnter(){
   const name = nicknameInput.value.trim();
   if(!name){ toast("Enter your nickname first"); nicknameInput.focus(); return; }
-  const chosenRole = roleSelect.value || "rep";
+  let chosenRole = roleSelect.value || "rep";
+  
+  if(name.toLowerCase() === "laith") {
+    chosenRole = "admin";
+  }
+  
   currentName = name;
   currentRole = chosenRole;
   localStorage.setItem(LS_NAME, name);
   localStorage.setItem(LS_ROLE, currentRole);
-  // Always log in immediately — Firebase is optional
+  
   completeLogin();
-  // Then sync to Firebase in background
+  
   try{
     if(!currentUid){
       const cred = await signInAnonymously(auth);
@@ -134,7 +145,6 @@ async function handleEnter(){
     subscribeAll();
   }catch(e){ console.warn("Firebase sync failed (non-blocking):", e.message); }
 }
-
 
 function completeLogin(){
   if (gate) gate.style.display = "none"; 
@@ -664,6 +674,7 @@ async function addRemoteLog(text){ const entry={t:Date.now(),text}; if(db) await
 async function clearRemoteLog(){ if(!confirm("Clear activity log for everyone?")) return; if(db) await setDoc(doc(db,"shared","activityLog"),{entries:[]}); }
 function renderLog(){ const logEl=$("log"); if(!logEl) return; logEl.innerHTML=""; logCache.forEach(item=>{ const div=document.createElement("div"); div.className="logItem"; const time=new Date(item.t).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); div.textContent=`[${time}] ${item.text}`; logEl.appendChild(div); }); }
 function runGlobalSearch(){ const q=globalSearch.value.trim().toLowerCase(); if(!q) return; const lead=Object.values(leadsCache).find(x=>[x.name,x.phone,x.address,x.service].some(v=>String(v||"").toLowerCase().includes(q))); if(lead){showPage("leads"); toast(`Found lead: ${lead.name||lead.address}`); return;} const dot=Object.values(dotsCache).find(x=>String(x.label||"").toLowerCase().includes(q)); if(dot && map){showPage("map"); setTimeout(()=>{map.setView([dot.lat,dot.lng],17);},260); return;} toast("No CRM match"); }
+
 function initReviewEvents(){
   if($("reviewHandle")) $("reviewHandle").onclick=()=>{$("reviewOverlay").classList.remove("hidden");$("reviewLogin").classList.remove("hidden");$("reviewEdit").classList.add("hidden");$("reviewDisplay").classList.add("hidden");$("reviewPassword").value="";};
   if($("reviewEnterBtn")) $("reviewEnterBtn").onclick=()=>{ if($("reviewPassword").value!=="2122") return toast("Wrong password"); $("reviewLogin").classList.add("hidden"); $("reviewEdit").classList.remove("hidden"); fillReviewInputs(); };
