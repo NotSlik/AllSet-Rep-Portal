@@ -5,6 +5,7 @@ import { getFirestore, doc, getDoc, onSnapshot, setDoc } from "https://www.gstat
 const firebaseConfig={apiKey:"AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",authDomain:"allsetrepportal.firebaseapp.com",projectId:"allsetrepportal",storageBucket:"allsetrepportal.firebasestorage.app",messagingSenderId:"590070052736",appId:"1:590070052736:web:193a9edb6fd378fbd27365",measurementId:"G-SY45913J3Z",databaseURL:"https://allsetrepportal-default-rtdb.firebaseio.com"};
 const app=getApps()[0]||initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
 const $=id=>document.getElementById(id);
+const DEFAULT_PAYMENT_IMAGES=window.allsetPaymentDefaultImages||{};
 const IMAGE_TARGET_BYTES=260000;
 const IMAGE_MAX_BYTES=320000;
 const METHODS=[
@@ -67,7 +68,7 @@ function upgradeAdminPaymentFields(){
     const anchor=$(method.inputId)?.closest("label")||grid.firstElementChild;
     const label=document.createElement("label");
     label.dataset.paymentUploadWrap=method.key;
-    label.innerHTML=`${method.label} Image<input type="file" accept="image/*" data-payment-upload="${method.key}" /><span class="paymentUploadHint">Upload the scan image customers should use.</span><span class="paymentImagePreview" data-payment-preview="${method.key}"></span><button class="dangerBtn smallBtn paymentClearBtn" type="button" data-clear-payment-image="${method.key}">Remove Image</button>`;
+    label.innerHTML=`${method.label} Image<input type="file" accept="image/*" data-payment-upload="${method.key}" /><span class="paymentUploadHint">Upload the scan image customers should use.</span><span class="paymentImagePreview" data-payment-preview="${method.key}"></span><button class="dangerBtn smallBtn paymentClearBtn" type="button" data-clear-payment-image="${method.key}">Remove Custom Image</button>`;
     anchor?.after?anchor.after(label):grid.appendChild(label);
   });
   fillAdminInputs();
@@ -79,9 +80,10 @@ function removeQrUrlFields(){
 
 function fillAdminInputs(){
   METHODS.forEach(method=>{
-    const img=settings[`${method.key}Image`]||settings[`${method.key}Qr`]||"";
+    const img=paymentImageFor(method.key);
+    const custom=hasCustomImage(method.key);
     const preview=document.querySelector(`[data-payment-preview="${method.key}"]`);
-    if(preview)preview.innerHTML=img?`<img src="${img}" alt="${method.label} payment image preview" />`:`<span>No image uploaded</span>`;
+    if(preview)preview.innerHTML=img?`<img src="${img}" alt="${method.label} payment image preview" /><span>${custom?"Custom image saved":"Default image active"}</span>`:`<span>No image available</span>`;
     const input=$(method.inputId);
     if(input&&!input.value)input.value=settings[method.key]||"";
   });
@@ -99,7 +101,7 @@ function applyPaymentButtons(){
     const tag=$(method.tagId);if(tag)tag.textContent=settings[method.key]||defaultTag(method.key);
     if(!link.querySelector(".paymentImageState"))link.insertAdjacentHTML("beforeend",`<span class="paymentImageState"></span>`);
     const state=link.querySelector(".paymentImageState");
-    if(state)state.textContent=(settings[`${method.key}Image`]||settings[`${method.key}Qr`])?"Tap to show scan image":"No image uploaded";
+    if(state)state.textContent=paymentImageFor(method.key)?"Tap to show scan image":"No image available";
   });
 }
 
@@ -133,21 +135,21 @@ async function savePaymentImageSettings(){
 }
 
 async function clearPaymentImage(key){
-  if(!confirm(`Remove the ${labelFor(key)} payment image?`))return;
+  if(!confirm(`Remove the custom ${labelFor(key)} payment image? The default image will still show.`))return;
   const patch={updatedAt:Date.now(),updatedBy:currentName()};
   patch[`${key}Image`]="";
   patch[`${key}Qr`]="";
   await setDoc(doc(db,"shared","settings"),patch,{merge:true});
   const input=document.querySelector(`input[data-payment-upload="${key}"]`);if(input){input.value="";delete input.dataset.imageData;}
-  toast(`${labelFor(key)} image removed`);
+  toast(`${labelFor(key)} custom image removed`);
 }
 
 function openPaymentImage(key){
-  const image=settings[`${key}Image`]||settings[`${key}Qr`]||"";
+  const image=paymentImageFor(key);
   const modal=$("paymentImageModal"),title=$("paymentImageTitle"),body=$("paymentImageBody");
   if(!modal||!title||!body)return;
   title.textContent=labelFor(key);
-  body.innerHTML=image?`<img class="paymentScanImage" src="${image}" alt="${labelFor(key)} payment scan image" /><div class="paymentScanTag">${escapeHtml(settings[key]||defaultTag(key))}</div>`:`<div class="paymentMissingImage">No payment image has been uploaded for ${labelFor(key)} yet.</div>`;
+  body.innerHTML=image?`<img class="paymentScanImage" src="${image}" alt="${labelFor(key)} payment scan image" /><div class="paymentScanTag">${escapeHtml(settings[key]||defaultTag(key))}</div>`:`<div class="paymentMissingImage">No payment image is available for ${labelFor(key)} yet.</div>`;
   modal.classList.remove("hidden");
 }
 function closePaymentImage(){$("paymentImageModal")?.classList.add("hidden")}
@@ -160,7 +162,7 @@ function ensurePaymentModal(){
 function injectPaymentCss(){
   if($("paymentImageCss"))return;
   const s=document.createElement("style");s.id="paymentImageCss";s.textContent=`
-    .paymentImageState{display:block;margin-top:8px;color:var(--muted);font-size:11px;font-weight:800}.paymentUploadHint{display:block;color:var(--muted);font-size:11px;margin-top:6px}.paymentImagePreview{display:grid;place-items:center;min-height:86px;margin-top:8px;border:1px dashed rgba(255,255,255,.18);border-radius:12px;background:rgba(0,0,0,.14);overflow:hidden;color:var(--muted);font-size:12px}.paymentImagePreview img{width:100%;max-height:170px;object-fit:contain;background:#fff}.paymentClearBtn{margin-top:8px}.paymentImageModal{position:fixed;inset:0;z-index:2600;display:grid;place-items:center;padding:18px}.paymentImageModal.hidden{display:none!important}.paymentImageBackdrop{position:absolute;inset:0;background:rgba(0,0,0,.68);backdrop-filter:blur(8px)}.paymentImageCard{position:relative;width:min(520px,94vw);max-height:92dvh;display:grid;grid-template-rows:auto 1fr;background:linear-gradient(180deg,rgba(13,20,34,.98),rgba(8,13,23,.98));border:1px solid rgba(255,255,255,.16);border-radius:18px;box-shadow:0 26px 90px rgba(0,0,0,.58);overflow:hidden}.paymentImageTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:14px;border-bottom:1px solid rgba(255,255,255,.12)}.paymentImageTop strong,.paymentImageTop span{display:block}.paymentImageTop span{color:var(--muted);font-size:12px;margin-top:2px}.paymentImageBody{padding:16px;overflow:auto;text-align:center}.paymentScanImage{display:block;width:100%;max-height:72dvh;object-fit:contain;background:#fff;border-radius:14px;padding:10px;margin:0 auto}.paymentScanTag{margin-top:10px;color:var(--muted);font-size:13px;font-weight:850}.paymentMissingImage{border:1px dashed rgba(255,255,255,.18);border-radius:14px;padding:28px 14px;color:var(--muted);background:rgba(255,255,255,.05)}@media(max-width:520px){.paymentImageCard{width:calc(100vw - 18px);border-radius:16px}.paymentImageBody{padding:10px}.paymentScanImage{max-height:70dvh;padding:7px}}
+    .paymentImageState{display:block;margin-top:8px;color:var(--muted);font-size:11px;font-weight:800}.paymentUploadHint{display:block;color:var(--muted);font-size:11px;margin-top:6px}.paymentImagePreview{display:grid;gap:6px;place-items:center;min-height:86px;margin-top:8px;border:1px dashed rgba(255,255,255,.18);border-radius:12px;background:rgba(0,0,0,.14);overflow:hidden;color:var(--muted);font-size:12px}.paymentImagePreview img{width:100%;max-height:170px;object-fit:contain;background:#fff}.paymentClearBtn{margin-top:8px}.paymentImageModal{position:fixed;inset:0;z-index:2600;display:grid;place-items:center;padding:18px}.paymentImageModal.hidden{display:none!important}.paymentImageBackdrop{position:absolute;inset:0;background:rgba(0,0,0,.68);backdrop-filter:blur(8px)}.paymentImageCard{position:relative;width:min(520px,94vw);max-height:92dvh;display:grid;grid-template-rows:auto 1fr;background:linear-gradient(180deg,rgba(13,20,34,.98),rgba(8,13,23,.98));border:1px solid rgba(255,255,255,.16);border-radius:18px;box-shadow:0 26px 90px rgba(0,0,0,.58);overflow:hidden}.paymentImageTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:14px;border-bottom:1px solid rgba(255,255,255,.12)}.paymentImageTop strong,.paymentImageTop span{display:block}.paymentImageTop span{color:var(--muted);font-size:12px;margin-top:2px}.paymentImageBody{padding:16px;overflow:auto;text-align:center}.paymentScanImage{display:block;width:100%;max-height:72dvh;object-fit:contain;background:#fff;border-radius:14px;padding:10px;margin:0 auto}.paymentScanTag{margin-top:10px;color:var(--muted);font-size:13px;font-weight:850}.paymentMissingImage{border:1px dashed rgba(255,255,255,.18);border-radius:14px;padding:28px 14px;color:var(--muted);background:rgba(255,255,255,.05)}@media(max-width:520px){.paymentImageCard{width:calc(100vw - 18px);border-radius:16px}.paymentImageBody{padding:10px}.paymentScanImage{max-height:70dvh;padding:7px}}
   `;document.head.appendChild(s);
 }
 
@@ -191,10 +193,12 @@ async function fileToCompressedDataUrl(file){
   if(data.length>IMAGE_MAX_BYTES)throw new Error("Image is still too large. Try a tighter screenshot of the payment code.");
   return data;
 }
+function paymentImageFor(key){return settings[`${key}Image`]||settings[`${key}Qr`]||DEFAULT_PAYMENT_IMAGES[key]||""}
+function hasCustomImage(key){return Boolean(settings[`${key}Image`]||settings[`${key}Qr`])}
 function readFile(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("Could not read image"));r.readAsDataURL(file);});}
 function loadImage(src){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>res(img);img.onerror=()=>rej(new Error("Could not load image"));img.src=src;});}
 function labelFor(key){return METHODS.find(m=>m.key===key)?.label||"Payment"}
-function defaultTag(key){return{cashApp:"$AllSet",venmo:"@AllSet",paypal:"PayPal"}[key]||""}
+function defaultTag(key){return{cashApp:"$NotS1ick",venmo:"@notslik",paypal:"PayPal"}[key]||""}
 function currentName(){return localStorage.getItem("allset_rep_name")||$("nicknameInput")?.value||"Team"}
 function escapeHtml(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
 function toast(msg){const el=$("toast");if(!el)return;el.textContent=msg;el.classList.remove("hidden");clearTimeout(el._t);el._t=setTimeout(()=>el.classList.add("hidden"),2200)}
