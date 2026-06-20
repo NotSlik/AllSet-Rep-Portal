@@ -14,7 +14,7 @@
         return response.text();
       });
 
-      const parsed = new DOMParser().parseFromString(html.replace("app.js?v=inlineboot", "app.js?v=loader327"), "text/html");
+      const parsed = new DOMParser().parseFromString(html.replace("app.js?v=inlineboot", "app.js?v=classic327"), "text/html");
       const scripts = [...parsed.scripts].map(oldScript => ({
         src: oldScript.getAttribute("src"),
         type: oldScript.getAttribute("type"),
@@ -28,7 +28,8 @@
       for (const item of scripts) {
         await new Promise((resolve, reject) => {
           const script = document.createElement("script");
-          if (item.type) script.type = item.type;
+          const isAppScript = item.src && item.src.includes("app.js");
+          if (item.type && !isAppScript) script.type = item.type;
           if (item.src) {
             script.src = item.src;
             script.onload = resolve;
