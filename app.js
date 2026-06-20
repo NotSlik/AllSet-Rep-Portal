@@ -1,372 +1,55 @@
-import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
- 
-const firebaseConfig={apiKey:"AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",authDomain:"allsetrepportal.firebaseapp.com",projectId:"allsetrepportal",storageBucket:"allsetrepportal.firebasestorage.app",messagingSenderId:"590070052736",appId:"1:590070052736:web:193a9edb6fd378fbd27365",measurementId:"G-SY45913J3Z",databaseURL:"https://allsetrepportal-default-rtdb.firebaseio.com"};
-const app=getApps()[0]||initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
- 
-const $=id=>document.getElementById(id);
-const esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-const money=n=>"$"+Number(n||0).toLocaleString();
- 
-let uid="",role=localStorage.getItem("allset_rep_role")||"rep",name=localStorage.getItem("allset_rep_name")||"Team";
-let leads={},jobs={},customers={},reps={},subscribed=false;
-let editKind="",editId="";
- 
-/* ---------- GATE / LOGIN ---------- */
- 
-function openCrm(){
-  const nameInput=$("nicknameInput"),roleInput=$("roleSelect");
-  name=(nameInput&&nameInput.value.trim())?nameInput.value.trim():"Laith";
-  role=(roleInput&&roleInput.value)?roleInput.value:"rep";
-  try{localStorage.setItem("allset_rep_name",name);localStorage.setItem("allset_rep_role",role);}catch(e){}
-  if($("repName"))$("repName").textContent=name;
-  if($("roleName"))$("roleName").textContent=role;
-  if($("gate"))$("gate").style.display="none";
-  if($("app"))$("app").classList.remove("app--locked");
-  showPage("dashboard");
-  bootFirebase();
-}
- 
-function showGate(){
-  if($("gate"))$("gate").style.display="grid";
-  if($("app"))$("app").classList.add("app--locked");
-}
- 
-function showPage(page){
-  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
-  const target=$("page-"+page);
-  if(target)target.classList.add("active");
-  document.querySelectorAll(".navBtn").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
-  const nav=$("nav");
-  if(nav)nav.classList.remove("open");
-  renderAll();
-}
- 
-function toast(text){
-  const t=$("toast");
-  if(!t)return;
-  t.textContent=text;
-  t.classList.remove("hidden");
-  clearTimeout(t._t);
-  t._t=setTimeout(()=>t.classList.add("hidden"),2000);
-}
- 
-/* ---------- FIREBASE ---------- */
- 
-function bootFirebase(){
-  signInAnonymously(auth).catch(()=>{});
-  onAuthStateChanged(auth,u=>{uid=u?.uid||uid;subscribe();});
-}
- 
-function subscribe(){
-  if(subscribed)return;
-  subscribed=true;
-  onSnapshot(collection(db,"leads"),s=>{leads=snapObj(s);renderAll();});
-  onSnapshot(collection(db,"jobs"),s=>{jobs=snapObj(s);renderAll();});
-  onSnapshot(collection(db,"customers"),s=>{customers=snapObj(s);renderAll();});
-  onSnapshot(collection(db,"reps"),s=>{reps=snapObj(s);renderAll();});
-}
- 
-function snapObj(s){const o={};s.forEach(d=>o[d.id]={...d.data(),id:d.data().id||d.id});return o;}
- 
-function jobStatus(s){s=String(s||"open").toLowerCase().replace(/\s+/g,"_").replace("-","_");return s==="scheduled"?"open":s;}
-function labelStatus(s){return jobStatus(s).replaceAll("_"," ").replace(/^./,c=>c.toUpperCase());}
-function dateVal(v){if(!v)return 0;if(typeof v==="number")return v;if(v.seconds)return v.seconds*1000;const t=new Date(v).getTime();return Number.isFinite(t)?t:0;}
-function readableDate(v){const t=dateVal(v);return t?new Date(t).toLocaleString([],{month:"2-digit",day:"2-digit",year:"numeric",hour:"numeric",minute:"2-digit"}):"";}
- 
-/* ---------- TABLE RENDER HELPER ---------- */
- 
-function table(id,headers,rows,empty){
-  const el=$(id);
-  if(!el)return;
-  el.innerHTML=rows.length
-    ? `<table class="dataTable"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`
-    : `<div class="card">${empty}</div>`;
-}
- 
-/* ---------- LEADS ---------- */
- 
-function renderLeads(){
-  const el=$("leadsTable");
-  if(!el)return;
-  const rows=Object.values(leads)
-    .sort((a,b)=>dateVal(b.createdAt)-dateVal(a.createdAt))
-    .map(l=>`<tr>
-      <td><strong>${esc(l.customer||l.name||"Lead")}</strong><br><span class="muted">${esc(l.address||"")}</span></td>
-      <td>${esc(l.phone||"-")}</td>
-      <td><span class="status">${esc(l.status||"new")}</span></td>
-      <td>${l.quote?money(l.quote):"-"}</td>
-      <td>${esc(l.repName||name||"-")}</td>
-      <td><div class="tableActions">
-        <button class="ghostBtn smallBtn" onclick="window.crmEdit('lead','${esc(l.id)}')">Edit</button>
-        <button class="dangerBtn smallBtn" onclick="window.crmDelete('lead','${esc(l.id)}')">Delete</button>
-      </div></td>
-    </tr>`);
-  table("leadsTable",["Lead","Phone","Status","Quote","Rep",""],rows,"No leads yet. Tap + Add Lead to log a door knock.");
-}
- 
-/* ---------- JOBS ---------- */
- 
-function renderJobs(){
-  const el=$("jobsTable");
-  if(!el||role==="cleaner")return; // ops.js renders the cleaner-specific job board view
-  const rows=Object.values(jobs)
-    .sort((a,b)=>dateVal(b.createdAt)-dateVal(a.createdAt))
-    .map(j=>`<tr>
-      <td><strong>${esc(j.customer||j.title||"Job")}</strong><br><span class="muted">${esc(j.address||"")}</span></td>
-      <td>${esc(j.phone||"-")}</td>
-      <td>${esc(readableDate(j.scheduledAt)||"-")}</td>
-      <td><span class="status ${jobStatus(j.status)}">${esc(labelStatus(j.status))}</span></td>
-      <td>${esc(j.repName||"-")}</td>
-      <td>${j.price?money(j.price):"-"}</td>
-      <td><div class="tableActions">
-        <button class="ghostBtn smallBtn" onclick="window.crmEdit('job','${esc(j.id)}')">Edit</button>
-        <button class="dangerBtn smallBtn" onclick="window.crmDelete('job','${esc(j.id)}')">Delete</button>
-      </div></td>
-    </tr>`);
-  table("jobsTable",["Job","Phone","Scheduled","Status","Rep","Price",""],rows,"No jobs yet. Tap + Add Job to schedule work.");
-}
- 
-/* ---------- CUSTOMERS (basic list, full edit comes later) ---------- */
- 
-function renderCustomers(){
-  const el=$("customersTable");
-  if(!el)return;
-  const rows=Object.values(customers)
-    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")))
-    .map(c=>`<tr>
-      <td><strong>${esc(c.name||"Customer")}</strong></td>
-      <td>${esc(c.address||"-")}</td>
-      <td>${esc(c.phone||"-")}</td>
-      <td><div class="tableActions">
-        <button class="ghostBtn smallBtn" onclick="window.crmEdit('customer','${esc(c.id)}')">Edit</button>
-        <button class="dangerBtn smallBtn" onclick="window.crmDelete('customer','${esc(c.id)}')">Delete</button>
-      </div></td>
-    </tr>`);
-  table("customersTable",["Name","Address","Phone",""],rows,"No customers yet.");
-}
- 
-/* ---------- TEAM (basic list) ---------- */
- 
-function renderTeam(){
-  const el=$("teamTable");
-  if(!el)return;
-  const rows=Object.values(reps)
-    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")))
-    .map(r=>`<tr>
-      <td><strong>${esc(r.name||"Team member")}</strong></td>
-      <td>${esc(r.role||"rep")}</td>
-      <td><div class="tableActions">
-        <button class="ghostBtn smallBtn" onclick="window.crmEdit('team','${esc(r.id)}')">Edit</button>
-      </div></td>
-    </tr>`);
-  table("teamTable",["Name","Role",""],rows,"No team members yet.");
-}
- 
-/* ---------- DASHBOARD STATS ---------- */
- 
-function renderDashboard(){
-  const leadList=Object.values(leads),jobList=Object.values(jobs);
-  const todayStart=new Date();todayStart.setHours(0,0,0,0);
-  const weekStart=Date.now()-7*86400000;
-  const isClosed=l=>["sold","converted"].includes(String(l.status||"").toLowerCase());
-  const todayRevenue=jobList.filter(j=>jobStatus(j.status)==="completed"&&dateVal(j.completedAt)>=todayStart.getTime()).reduce((s,j)=>s+Number(j.price||0),0)
-    + leadList.filter(l=>isClosed(l)&&dateVal(l.createdAt)>=todayStart.getTime()).reduce((s,l)=>s+Number(l.quote||0),0);
-  const weekRevenue=jobList.filter(j=>jobStatus(j.status)==="completed"&&dateVal(j.completedAt)>=weekStart).reduce((s,j)=>s+Number(j.price||0),0)
-    + leadList.filter(l=>isClosed(l)&&dateVal(l.createdAt)>=weekStart).reduce((s,l)=>s+Number(l.quote||0),0);
-  const activeJobs=jobList.filter(j=>["open","claimed","in_progress"].includes(jobStatus(j.status))).length;
- 
-  if($("statTodayRevenue"))$("statTodayRevenue").textContent=money(todayRevenue);
-  if($("statWeekRevenue"))$("statWeekRevenue").textContent=money(weekRevenue);
-  if($("statActiveJobs"))$("statActiveJobs").textContent=activeJobs;
- 
-  if($("dashLeads"))$("dashLeads").textContent=leadList.length;
-  if($("dashQuotes"))$("dashQuotes").textContent=leadList.filter(l=>Number(l.quote)>0).length;
-  if($("dashScheduled"))$("dashScheduled").textContent=jobList.filter(j=>jobStatus(j.status)==="open").length;
-  if($("dashCompleted"))$("dashCompleted").textContent=jobList.filter(j=>jobStatus(j.status)==="completed").length;
-  if($("dashUnpaid"))$("dashUnpaid").textContent=jobList.filter(j=>jobStatus(j.status)==="completed"&&!j.paid).length;
-}
- 
-function renderAll(){
-  renderLeads();
-  renderJobs();
-  renderCustomers();
-  renderTeam();
-  renderDashboard();
-}
- 
-/* ---------- MODAL / CRM EDIT ---------- */
- 
-const FIELD_DEFS={
-  lead:{
-    title:id=>id?"Edit Lead":"Add Lead",
-    fields:[
-      ["customer","Customer Name","text"],
-      ["address","Address","text"],
-      ["phone","Phone","text"],
-      ["status","Status","select",["new","contacted","quoted","sold","converted","no"]],
-      ["quote","Quote Amount","number"],
-      ["notes","Notes","textarea"]
-    ]
-  },
-  job:{
-    title:id=>id?"Edit Job":"Add Job",
-    fields:[
-      ["customer","Customer Name","text"],
-      ["address","Address","text"],
-      ["phone","Phone","text"],
-      ["status","Status","select",["open","claimed","in_progress","completed","cancelled"]],
-      ["scheduledAt","Scheduled Date/Time","datetime-local"],
-      ["price","Price","number"],
-      ["cleaner","Cleaner Name","text"],
-      ["notes","Notes","textarea"]
-    ]
-  },
-  customer:{
-    title:id=>id?"Edit Customer":"Add Customer",
-    fields:[
-      ["name","Name","text"],
-      ["address","Address","text"],
-      ["phone","Phone","text"],
-      ["email","Email","text"],
-      ["notes","Notes","textarea"]
-    ]
-  },
-  team:{
-    title:id=>id?"Edit Team Member":"Add Team Member",
-    fields:[
-      ["name","Name","text"],
-      ["role","Role","select",["rep","cleaner","admin"]],
-      ["phone","Phone","text"]
-    ]
-  }
-};
- 
-const COLLECTION_FOR={lead:"leads",job:"jobs",customer:"customers",team:"reps"};
-const STORE_FOR={lead:leads,job:jobs,customer:customers,team:reps};
- 
-function fieldInput(key,label,type,options,value){
-  if(type==="select"){
-    return `<label>${esc(label)}<select data-field="${key}">${options.map(o=>`<option value="${esc(o)}" ${value===o?"selected":""}>${esc(labelStatus(o))}</option>`).join("")}</select></label>`;
-  }
-  if(type==="textarea"){
-    return `<label>${esc(label)}<textarea data-field="${key}">${esc(value||"")}</textarea></label>`;
-  }
-  if(type==="datetime-local"){
-    let v="";
-    const t=dateVal(value);
-    if(t){const d=new Date(t);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());v=d.toISOString().slice(0,16);}
-    return `<label>${esc(label)}<input data-field="${key}" type="datetime-local" value="${esc(v)}" /></label>`;
-  }
-  return `<label>${esc(label)}<input data-field="${key}" type="${type}" value="${esc(value??"")}" /></label>`;
-}
- 
-function openModal(kind,id){
-  const def=FIELD_DEFS[kind];
-  if(!def)return;
-  editKind=kind;editId=id||"";
-  const store=kind==="lead"?leads:kind==="job"?jobs:kind==="customer"?customers:reps;
-  const record=id?store[id]:{};
-  const fieldsHtml=def.fields.map(([key,label,type,options])=>fieldInput(key,label,type,options,record?.[key])).join("");
-  const card=$("modalCard");
-  if(!card)return;
-  card.innerHTML=`
-    <div class="modalHeader"><h2>${esc(def.title(id))}</h2><button id="modalCloseBtn" class="ghostBtn smallBtn" type="button">Close</button></div>
-    <div class="formGrid">${fieldsHtml}</div>
-    <div class="buttonRow" style="margin-top:14px">
-      ${id?`<button id="modalDeleteBtn" class="dangerBtn" type="button">Delete</button>`:""}
-      <button id="modalSaveBtn" class="actionBtn" type="button">Save</button>
-    </div>`;
-  $("modalBackdrop").classList.remove("hidden");
-  $("modalCloseBtn").onclick=closeModal;
-  $("modalSaveBtn").onclick=saveModal;
-  if($("modalDeleteBtn"))$("modalDeleteBtn").onclick=()=>{deleteRecord(kind,id);closeModal();};
-}
- 
-function closeModal(){
-  $("modalBackdrop")?.classList.add("hidden");
-  editKind="";editId="";
-}
- 
-async function saveModal(){
-  const def=FIELD_DEFS[editKind];
-  if(!def)return;
-  const card=$("modalCard");
-  const data={};
-  def.fields.forEach(([key,,type])=>{
-    const input=card.querySelector(`[data-field="${key}"]`);
-    if(!input)return;
-    let v=input.value;
-    if(type==="number")v=v===""?0:Number(v);
-    if(type==="datetime-local")v=v?new Date(v).getTime():"";
-    data[key]=v;
-  });
-  const id=editId||`${editKind}-${Date.now()}`;
-  data.id=id;
-  data.updatedAt=Date.now();
-  data.updatedBy=name;
-  if(!editId){
-    data.createdAt=Date.now();
-    data.createdBy=name;
-    if(editKind==="lead"||editKind==="job")data.repName=name;
-  }
-  const collectionName=COLLECTION_FOR[editKind];
-  await setDoc(doc(db,collectionName,id),data,{merge:true});
-  toast(`${def.title(editId).replace("Edit ","").replace("Add ","")} saved`);
-  closeModal();
-}
- 
-async function deleteRecord(kind,id){
-  if(!id)return;
-  if(!confirm("Delete this record?"))return;
-  await deleteDoc(doc(db,COLLECTION_FOR[kind],id));
-  toast("Deleted");
-}
- 
-window.crmEdit=(kind,id)=>openModal(kind,id);
-window.crmDelete=(kind,id)=>deleteRecord(kind,id);
-window.crmSave=saveModal;
- 
-/* ---------- BOOT / WIRE ---------- */
- 
-window.addEventListener("DOMContentLoaded",function(){
-  let savedName=null,savedRole=null;
-  try{savedName=localStorage.getItem("allset_rep_name");savedRole=localStorage.getItem("allset_rep_role");}catch(e){}
-  if(savedName&&$("nicknameInput"))$("nicknameInput").value=savedName;
-  if(savedRole&&$("roleSelect"))$("roleSelect").value=savedRole;
- 
-  if($("enterBtn"))$("enterBtn").addEventListener("click",openCrm);
-  if($("nicknameInput"))$("nicknameInput").addEventListener("keydown",e=>{if(e.key==="Enter")openCrm();});
-  if($("changeNameBtn"))$("changeNameBtn").addEventListener("click",showGate);
-  if($("mobileNavBtn"))$("mobileNavBtn").addEventListener("click",()=>{if($("nav"))$("nav").classList.toggle("open");});
- 
-  document.querySelectorAll(".navBtn").forEach(btn=>{
-    btn.addEventListener("click",function(){showPage(this.getAttribute("data-page"));});
-  });
- 
-  document.querySelectorAll("[data-open]").forEach(btn=>{
-    btn.addEventListener("click",function(){
-      const target=this.getAttribute("data-open");
-      if(target==="leadModal")openModal("lead","");
-      else if(target==="jobModal")openModal("job","");
-      else if(target==="customerModal")openModal("customer","");
-      else if(target==="teamModal")openModal("team","");
-    });
-  });
- 
-  if($("modalBackdrop")){
-    $("modalBackdrop").addEventListener("click",e=>{if(e.target.id==="modalBackdrop")closeModal();});
-  }
- 
-  if($("clearLogBtn"))$("clearLogBtn").addEventListener("click",()=>{if($("log"))$("log").innerHTML="";});
- 
-  // If a session is already active (page refresh after login), skip the gate.
-  if(savedName){
-    name=savedName;
-    role=savedRole||"rep";
-    if($("repName"))$("repName").textContent=name;
-    if($("roleName"))$("roleName").textContent=role;
-  }
-});
- 
+п»ї// Generated stabilization bundle. Source: github-app.js
+const payload = "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ЊЩЭТV“ZН]PRЭL[YPLU›MЪЉОњ‹Ф”ЌPњ‘PЪY–њ•\љљЦЌ\Н›ЪђZZЌ“Ћ^]QTT”^”ЬО
+ТОLњ‘QРЫЦR^ќ“MSСМV\ОZТЭQJНUVY‹ТЪРUЭРС™[ЭњKЛНQЛЩЊQTЬ‘Ь•RUYQTМљRќЬСЦЋMЫЦ”R[^V‹РЮTЪU”RЫSЩ•UTM™\SХZ’ЦSQђЪССЫСUPRM“MНУ‘ќЬUХЪ”ЫРђНRV”ХЦ™KШЩЮФZЌN]ћN^SљРZЫЊLKЩRУ•ЌJЬЌVN\YФ\ЌЌХМШ›TФђФЌMО]XMЊФХЩMћY›Ы[LХђЩљЩХSZ\PY–SМMђKФЊYYPШХФL‘Щ“SЌХЬ‹Ъ
+КУЩNM™‘Ц\НU]РZ[L“М‘\ZЭНљЪЬћPU’TУСR’Р’‹ХЭЬОUU’\XRњСЦ›TУ[\[^[Q^НРЫЦЊњЩ–”УљУ”PЫЮ\ЌР\УU”њ\УЋЫ–НЌX•[R[ЫV‘™ЌЊЌШљ™•S”љШљZЫ›QСЫљTVЦQV–’YЊ”О\XЫСОXКМ]ЫЋЫL\^™M•њ]љ›Ь“U^РЪRЬ\›ЮЬRUSНYS–[ЦђШR›ЫPМ“’\[Ы^ЌUQЩ]ЋRФЊОUP”ќЌСћќњNЪ\UћћR“ZЉЬЭќ™ЦSЉХ™]MЮL]\ЫШXЩ–Q‘]VMЪФYPРTJНЪЪќU”НVЊ[Ц“Ы]P•ќЫђТНН”ШS‹Ц›ЬХЩPШZZФNQќZњНSY
+ЭЪ\НQY^LЌ•›•–NT™MЫЊЪ•ќФ’“[Q‘ќ–^њ“’VTЭТQђЩЬQУ•Ц”^MXХЮ’‘ЪШU”М“JЮ\L‘ќ“Т›]њU“ЊЩЬPњ^•
+УШLљ[ЪУ\UРU”XЋ‹Ц•ЬЦMRЮYљVЌЬЩЬХTLUU›™]ЪРM‘Ц“›ЪY”[љУRЬ‹ХLСNYЫ”SUJНLНњН•VТЪЫT•UњRY‹Рњ\ЮћћQ]PњЊњYќЛЪУ–SО\›KШRT‘MРUЦXХVYђV\•RСYћ™ЪUМPL•ќ[Њћћђ[]VЊ”MРЮ›Щ•ЦљLЩTШ[SњУЦYОФMђЬ•ШСSУLUKРSР›М^ЊЌХNRЫЌVMQRT“ФNT™V]У–SЊЦЦХNRС•ќКСЊСЦќШФZQТ›УYУНЦњУ][МУђZQ]ќђ\“U‘’]РШЪќЩЌ\QФTTђVЊ]ЦХZTЦљ”LUSРХ\О™XQ’ЌђЭО[њPЦ[ЬQђ•‹Ъљ’’ФЪМЛУL^ђЌVћ^PЩФљћ
+ЬЊЛЪRЬНY‘›Ъ”‘ЪМЋSЛЩМQМТ”\™љЫLњ“’’ЪЦMЌЫОLЦ‘ЬR\ЩUPМYRћ›”ЦXTЉЫ•PRЌќљЊ[ФН–RУTPЛЮLЊТР“SКХУШЪ•ЛЭ”СќP•›YM“ЫЬ‘YNNR’ЬТ\ЊТVU•ЪЌНСЮ“”‘Х›ЫЭVR›SММ’–[љ‹ШЪЬYNYС’SЦM^ЌMЊ™ТQ•ЪЋ]Э\ЪR™МТUЫќУ•[СШ•“™[ЫС‘ЛТYKХLФЊ––љУШ’Ц[ЊVђЊњЩUЩMЩ[›S\ЩУЊQ“”ЦL”ЊЪM”]ЊЭЩ“ФRХЪЮљФУZJХZЩQС]”ZХ\•ЭZ›ЭL]“^TЭQЛЭЭVLНУ’ТЭ™ХХШ^НЪZ^–L]ЪUЋЩЊYP]MТ’МЩ“ЮЊТMRMNTЊQSU”[™’U‘ОTVQќЪЭUСЪ–Tќђ“НЩљСSТ\L••МЭХ›\V\њЩЭСTLУЊ™•Њ
+ЬХYУХUUМN[ћZС
+ЩШXЮЌЊ[Р“Ш–ќЪњРФЫPЊђ\MЌSЋVњQЫU‘ЫV^V^ЫњЦХ•ћ[RСќС[TќV]С›НљС”ЮќССљђ’’М\њ\XЛФYРQ’”\ЮЊZVЫTХUЪЭUТPЫRОVRНљТНVTТTTО–RЛЦYЮ^њT\[XNМZ”›UYЊ•ЦUТМЫU^SR›Q‘ШЫQНљ•ЛУX[^Z“Ф‘XЭ›ФZ‘PRЉЮ›]ђЬ]–›R–љСТЪХќЉМ›\›QN[L
+ХЬUУ^ђLX]ЭХњХћ™[ФLХ’Pќ“О\ХСХZ“’ФќV]]Q]ЌКЪљ”[ХЉУЫЮЌ“^M”Vљ^TЌЫV–›Sќ•^ЌM™ЊS[™•љ•НЌЫ]]•С]LТVUЫРЌ’SЭV]PХ‘]ђP^NTЬL•НPPМњ–XYLN
+РVR[LЌђRQ^UMЋSLТМќ]ЋRРЩМL•U‘[›S’Њ[ХКРR›L’L”^^ђ\ЫMТРХР[U–VђЭЩUЫќ“ЬM•Ю’‘ЭQ•\\’SШ›T”›^XXЮћ™^ZЩ”љМљФТНXJФћ“Y”ZљР^\ЮЭ”PТХЩЊЭЬЪНUљљQН]Ц‘ЮMФ\Н\НЊЌMРVV[ЩЦ“RSФСћ•‘ТЭ–PXZ™ЦХСЌЌЦЫNСPЭ™“^MYРV™ЫћЩ‘ЊќSљЋЌЦP›RЫќљ“^‘Т“С]XN^UЪСQ•XYСX“ЭМЪ“љЪЬS–ZЭ‘•ЫUЬ™™SЭМZЩЫњ]\ќђМћ^]ЋULV“’›ЩђQУVљ™СШУ“R•ђФR“Qњ•ђLL–^SЮЉУФШЊ™RЛЩЦ]ХX[P™СЌРЭђњ‘РXђХVљLTZШћ“X“’”LФXP›UШQKМЌXL’]ћ”Z–YZZЫњMЛСњњU›M”^“ћ\R\^“ЬNњќ‘ЬСQЦY^–U‘X••PV•ФUС‘СYХRJМШљ”RЋSXTНЛРћљћЪХЌQ“LTЦ
+ЮSMЦZ›MXT“Y^ЉФ’”Q‘НШ‘]ФРMШ^Z’Ю™ФќНФ›]НЮU]ќФYQЊLУZЪPYTСZТ\ћMљVХљћZ’Ъ]ђ™СЭRУССЬTЫQJМќ™•U›НОTRTљ‘
+Ш^ZYЋPЦLЫРУ–\[ЬЌљњШЩ”УPМ“JЪНЫQЌФPН[НЉН•ЫН’Y“ЫЬZMРЊRТV\њ[LРНЮV™M\ћQ]–\Ы“НTYЊљ]ХЌ\M[RTХќ›PЪ”љZ•ЫYLLMZ]Н^њ]™™СЬ\ЩЉШ’–MPТMSЊTХ]њM”\”[–њФ“\ЫЦЊХ‹УУRЦ^VLR\]]’Р\S‘Сњ™MУХФQ”љЬUU[™ЮVћњ’“]Ъќ’Щќ]TQЉЪSЦ’”Ъ–PQU•VђT“Ќ^ќ]Т’[њ•SPђЬђPR\]ЊU™M]ЋШLX“ђKЬMШќLЭ“ЊћUУУМЊЬ–ЌТMVЊЌUРШХRННJЮЪ“›љNT[]’›љ[УЋX\ТSЩТQ›ћZR”•M“•›”ЌRЋЬ]МN]Ќ\НЋ[ЮЉХН‘\–ЌЮМ›SШVђ[’ќЩђS“ЦL‘њ[‹Ы‘љФЊ[ЩќUР‘Њњ‘ќРОћSФКХ‘›Ц›Ы•ђV™”S•™ЊY™’С“LM”“L‹СZX”KР™NJТЮ]RMСХЬЮ–UљЮ’РЬ™ђЊ›МM”P›QPђМSPYЬ–\ЫЊX••PЫУН‘S\ФЌ‘RЮТ›РLСLXљЬХSЩМMђLУЉЭСН”С•‘\[“љZЮОСНњS“Щ’’RЮ”ќQ\•Ь›УМќZУЩ•РЩL‘SKЫМРR™LZ›N–ќMUЩ]•ђЫЋUZQЩY›MQVљM•ЫV–ћњљЌФT•УТJЮ’ХО]’›“^“ННRЬЮSЩУШЦЌЪ•ЭLЊШ[RQJСЌ[Щ™ЬЫ•ЊСUРXV“ЫФ•Ш’ћ•њT”[[–Њ•L’Н]^NXY\У‘њЌќTJЬXСYЫТQKЩ™ЌЛФНZљТЬЮќњЬЉТђY’Ьђ]ЩњЪ[[Ьњ•ZЊV[ЪVљY’MЦ•МQЊШ–њVZ’YQVЊU“L’
+ЦR–LН•ЊО^S‘КЫНЫЩЭО–ќ–“ЫЬС[RT“\Ьљ’MЦUЉСЦ
+ТОZ–ЊЪЦ‘’ќ‘ќYVЫ’Vђ–[ХЦTM™Ф[Ц™TТФ–”•‘УШ“С”XVJСЛЮЮQТЪ‘ђЌZШJСћVУ“VќЉЦRђRЋ[ОTЮ[›]СН•ШNYQЫЉО\ЉЩќќRФЬЦЋL››НQ•љ›Y•МЪНСЫЌ”[•МU\’МV““ЪљЫМUЫQ“SЮZ’њМУћSљR™PНЩXљ”Х[НSРЋT–RЊ™ШФћYYФ\Ъ‘[МЩP\ОЬЩќС•V™ЊRМTTЛОMVМL”UЩ”љСњ“СZQЦќУPЋКХL‘‘MќЦUђТЩЭ‘ЩХT[УФRХSUђJР]SZЬL]N\SМ]ZV[Њ“[НV›“ЩTЌ™Ъ[™TћZЌЌ–’›ЪМP–СXТЩМУR
+У”ЊUЪЊУР–[›МФЉЦTRЦЋS”ќ\СQ™MЌ™SZЩL™љQММЮR“RУЊPТ‘ЫUЬЪV\“Vќ’RРY]ФЌЊZQЫ”њћќђНX^ZЦV–•‘њЌ’[Э’‘UЬНЪ”ЪТZЊ’Н”JЭ^]ЊУ›ЦљV
+ШЫЪљ’™ЋZQХ›]Њ™’NЪХQЬЮLЩЛЬZХP”›[]ЋХњRQќ™V^”•XЦ[LњYЬ–НQУЩЩXUФћYЩМZКХљ[S™Н^UЦ[YZ–UХЌљRќT”Q–LTZШN[Х[”ФОQY›ђЭYРЫJОMХ”–›’ЫSY[“]XTMYЬЮ•Mњ›TФ™Н‘•Њ“ЬЬZ[LVZС^MЬZMљSТ”•SU‹Ц”NЭСХљ–ћљЪТ–“С]ZRТL•Qћ”“[ЋСЭ–љ“ZЦ[SЌЬЪљZ–JСY]TЌњФ–RMЋVСU‘РќЪY‘ФSХ’”›™\•ЪЫђќХ™њЭЭШ‹НЌ™QZЭХННЦ“ФљУ”ЫMR–XЊЬ\YС›TТ^Ъ]Р\ЮQUСZКНТћ–\]^ЌQЬХЊYЮR‘V]ТЩTТШС–[ШТУ‘™УЪ“ЩРќЭЌњXШђШVЊQZТФО\ФЦX”ЊРњМЮђ–њ\NS”\MШQPЩ–ТУќ’V‘\RМЩЩХќ’^Y’’RЌUЭЫ›ЊКЭЦ•SСШђ[””SУФ’љФ[њ›Х™TКМYJЮ“X\ОTQОSШ[Н‘ЋV\љJЪ”VљЫUЪЬ\[СУPY”ЊТ’ZЮP•”™U“™]РУњЬ]РYљЫС’VMUљЫСM”ЬYХМRXХЛЛЮћћLЋM“P›S”\““MYЪ™]ХMТТќSЉКСљSQTYЋЭР“’љУ^њ™RTЫ›ЭZY‘ТSЬ”’Ф™Х’ЉЩЌЊђSМУЭФС‘ЫђЪYЮ›ЮћђЭT
+ЬU^ћ“TMЋ’^”ЮЫЦњћ“\ќУ”U\LРV•]ННЦЬЉХЦђ^Q\НTQ‹Хњќ›LP‘ХЦVСZђNХY[ФMNQќSQYЋ[Y™LM”ФШХћTХZђ‘ТЪЭQ’ФЬKЫќЦђЬRYКЬQЪUќ›^‘R›L^PљLЊQ[›ЮЬЉСЬSУPХЫТЊЌ]Њ•ЬФ™”ЊСђM‘РЊНLХСЮQ–RNZQћSХ’СНќќЦ”ћM’ZS–]љTKМ^[ZњМVЊ‘
+У›Y™љЦV–’Н“ЭQЦ\M•›ђУZ™Ю•“UУ•SPТЌђЌMЋZ”НЬ›Р•ЪЪЊ’RМ”U\Ц]њ’”ЪYY‹Р]VZЩћМ–“Z^’\У’ЌЮћVЌЬSQТђЩ•\XђЬЪV‘РLЫУ‹О\JЪ]ЪУћMЪШ›[Њђ[Њ[ќУ›Ќ™њТЮЌ’–N™›PНќМЌZ”S”›ЪQ\ЮYМYОN]TSњРSTќ›ЭTЪНЮQКРЭОЦ\Ы’™ЩМќLLQЊФ]УНVULY™њМ
+ЮLЫРLZЋQЛНЮљ“КР‘›M\T™SPMљR\Ъ‘СРТШTXYЩJШ‘ШќNRЭ’
+СЋMЩЫTФќ]JТМРњ^–•ХY“УNVЛУ^^]ОSљН”М^Ы\ЦЊSђЛЭP›љН]ЪМЦ™СUњ”MXШУЫСљЋ[ќKШKЩPУ“ќ]’ЩЛЩЮ]R[Uљ[ЪНYQЩС]ќ’НMЭ••ЫQњЫМЬSЪ[ZТУ’СЮњ›ЌLLЋ^\VЭњУ•]VРЊМУ›ћRЩНYЦMШKЦ’^НMЌQX“ШTЫњ“УЬ’ЌJЬSХLMќХRRЮЩЬMЮTM”“\TМТ™ММЮZZZ•љУТЫС•Y\RЩЬM•њ]њљЫXЩ”•ќ›ZУН•VU–›YTQ^”YS][ћ™‘ћТЊMЦV”‘’КШЪSЌXќњ‘™”R‹ЬЉТ’ЭQЦќЭ“ЪZ”UTXSЋRШX›ОXNЮ›љSТNQЫЉЩЭ\ZSХ]’^––PS”ЊЌЦЌЋђМYUSS”›ЬЫћќ
+ТVYSХ–T]NУЉМРQМSLМ•ZML\Щ[С”ЬЫ\UђЦQЭSЌСЭ\›ТЦR‘TЭRќQLLM]“ЦMљ“Щ“]YU\ЬJО]MќМUНњ[њ–Lћ\UUУђЪТ”R“ТYЊУЬЪKЮЊ‘РЌP“ZХњЊLM™’М]ђRђ]ЫРФ‘Z
+СО]ТХСљФЌРKНФP–UЪљЭMZМX•ЮPTMTQ‹ЪPЭ
+ЭМMЊ‘SЦЌЋUЊ‘TХLUњЊњUZ™ТQњ™]њ“SXLЦљљНЫ–[T[\ЌЫMНСШФЭ•ФX–У›УћXЮJЩ•\РШM]XYSХ›ЭLТЮђQЋ\ZS”ЋM››‘”Н]Q”УТЛФЊЦUМЌPЭН[“ћ\ШЦ‘Ш‘RљU\ќXђ]ђЬMљУЭЦ[TЬ“–UЭСYУЌМСYRXЊШ™‘›ЩЭЪФTXЪ[PЮЉФМ^UXЪ››^ЭНYT™ОLћЦ–ќZСЭЬJУ›TНХЬ–TШV™SСTФ–QЬ’МљMОYШLН›ќXђЌ™YSЪђ•Ъ]KФ‘›QXУQЮTњ‘ЫЪ\›ТLR[У”ЋYУЭХ›УЦ‹ЛФФKЪРYТМRФ”]‹Э™њљљ^•љЫЌЫ’[УYXЬ’XLVЊ]–›[STЋ\›ШRЭZќМЊ™[‘”X”ФZ“›‘–•”]T›ЩЊЋSТ–љО•С\ћњRќ›ЛЭТ]UZUЭСќЦZњ]ЭНЛЬЩMЩY™њX”МЦKЩR
+ЩНNYСЦ›ШЌJС”ШФћ•TМTUЭ“ШYЩ]Lќђ[ЪЫZ[[^‘™R
+ЩњФќЛЫ–’RT’ЭUТМЭЋ‘ФЊ’ЪЊ™UЋNS‘љ“’PЋTУN–’М’ћЊЌљФ”›”Ш‘UЫЉХ]Q\™Щќ–ТLМТ›НШњPЉЭ’’KЬЦL›^LPШФ™•ЬYЭ™‘XЌUЦ]ќ•KС[UЩФXЪУ“[Нњљ’™[^•U\MЊ]ЫФYPV]ТНMVћ[ШЋ––UХ‹МT^‘XНФФљ’›ЮђР•НФUVћ–‘MЭљ”ќZЊM”ШР]”ОќT‘^”Ъ•‘RLЩЪЌћСKЛХНљћС‘“њќњRTљТ‘KУNZ\’НКЩН]ЌQћљ•
+ТШЩQ”•ЋТ”\LUОSОЭЩMJР™њљSљMС\LМUЋ
+ХЭ\‘ЛРZ^‘MUЬ–ЪЌS[Њ\VVЊ”ќќ›™P•СUЪЦSZНУШЪќ’–YРМФУТR[[СSЬ[™ќSЊМЦЌњХНL“Ь
+ЬЋZ”Mљ‹ЬНQLќ‘ќЭШЩЊ[ЩUЬТU™›[ЭЫЦRS\ЩННђ’JО\ђКЭУќ[ZQЭQSRЊЫЌњЪ™Z–UTЬ•ЊМ^ЫZTVЉЫYУ”ЊQЌPМњKФХZХНЬњЌЊњ–›Z”ЌY^“ђЭZЋMђPРНФU”ШЌЊLЋ\ЛУUСЊРЬR‘”SYћЩ‘QУХL]
+Ц•VR›ШVQ“[ЋMЊZЩPћЋYUЭR”ЌNTJТќVUТЊђРЫР‘L”‘ХUљZ›’UЊћ›ЮZФШќ’УЭРYЬЋ›S’РJТMШYYTђЊLЬ‘ЪЩZS“МЮ•N\U–”•ђ^Uћ’UYУ“\ШќМЉНRQЦMPRЊLЦђUUСњ’•ћ’”ХЬS”ХJЪMТЌќ]СKХM–[ЭЊФ”ќYњХЬTM
+РLШZСЭT™VMТ•Н”УЉУЫ\ђ™ЊT\[^\™ZMЋY\КМV
+ЫМЫ™”›Q›•НY[›ЩОKЬNЦ“С\RLљQМТ[[Щ‘UVЬЊ”НLЩЫMЊRL’’ЛТNQЭЮњYќЌЊ\›ЮQљњ™T^•ZЌZYРЩZСН]U•LХЊЩЪЪЛСћUЭZRУђSЪЋVN\RНRЛЭКМЬ•ЫЦM•QЛО•T^›L‘љ–U‘СSУЪRЦњTЊ
+ЬЋЌXЦ”ђСКЭЦQЌ™’Юћ”–NСЩ‹УLњ‘]СX^ћQ\]УХTЉКМ]P–T]Щ™YђФTЩ”]’SХУV™^ђV\]Ш›ЭX™О•”ЫZ–ђ›VТYЫљRШ^’њSФМНњЬUњСЩћTQММ”•NZ›LV\ХСXљRP[›ТТJШНСРJЮЊЪРЩЪУЌRНЩVЊЪЛЪЋJСJЬRQђ’ђУXОYZЪZ™“•QQЊMЫ^TФYУЫQЌЬ™L“ЛРLZќ\“Эќљ]С‘U–MШЌM”Ф›ЪУУШX\ЭSТњ™М–ќђЭ™ШСQ•љЦШХС“ќЋVЦЌМРЬ“M[ТШ”ШR“^XКС•ћ]UЛХJООЭМЫ™Э›СФ•ОSХQЫЌZЭSУ\\^SЩSV›ЦќP’U‘ћЊ–™]њРШЌќЪ[•ХRТ™\QРЫЩ›љ
+ЬЊ›^–]ZТRќСLФЭ”Ш[“ХM”ќRњ•СМVLќ\ЦLV””РT[КЦ™TTЊћ’™С™‘–•PM\ЩNTФОV“[ЪУХLЛТQN••SUT‘“ђњЊњС’ХРMЪ^MФЬXУ\У™’њМ‘›]MњSњMФО[QЩ›ЮQUЭЊФЪЮ–]ЪОMULТ’V’ЮTЭ‘ћ™[ЋЩќњVЊЊњ“]™ђ‘ОTђMYРЊPЊР[™ќ]]–ЪLУ]^LШ[\ЉТVQШЬ›љС‘[ђM]UњНX–‘UОMћLTШХТђХ
+ЭN”ЊљXЪ[‘њ›Ќ]]ћVM–ЌТЫ”XZФUUЮњЭ]ђЭ[ШђQЪX”^MљХRЪЫЫЦђ–Ъ•ТP“YђСЩMС•У™С™•’ќЮ]Э”ЫФ‘PY’TЪQЊЌХ[QЊЫТЬТ•’Т
+Щќ\™YЦLQ™”ЊRРLЬVT“\XЮL”L[MЌЌQ™]UЫ^^ЮPЬRTЊНMќUЪљЉНЛУ•О“КСLTСJНKЩ•ШЫUЊLЪњ\СђQ™НЊњНСР“ЮЪNXUќњ”ШњУРN[“‘ЬњLЊЌ‘QЩЪњ™Ќ]ЩVY‘ЊЊЬШXђЮJЩЋЩSСYQ™‘Y[ђQSSЪЬЋQSФ–^’ЊШLZЊЪСS•RЊMСљКТХ\”S
+ЩЛФLТМ]•ФНP“ЭS\YTФ›P’•ћМњYћ\Р•ТќKУ‘’КЫJЪTNYZ”]RЩMЫ›ФЭЌНњ™YћР•V–[M•Н›’”ќR–ЋZЦ‘•ќ[›\LUЭ–Uђ™UMTМЮ’Х’ћ[ФќXQ’љRЌNђPNUMЪVЬЫСМЩ™ћKЫUЭMR[ЭЌXНRХђJНСVЭ
+УZЮQЦ™Х[О]XХR›ЋTЦUPQQђ•X’KЩЦ™””›•]ФСМН”ЊPЉЪХЬ•Ъ\M”PMZ[ЫН”ЊќSPQX[VVXRU\[•KТШJЫУ”QЬТQНњЌЌ™РњМ[NY\KФњНХXMђ]™™Ќ]ЩUKЩСT™^\УќФ’ЋQЌ–Ћ]^MќTМMЉМЊХЉЬќњ›™SРМЦTКЫ™MУЮЭЭ^PЌ›У”ТY\њЪШЪ–TR]\ЮY^ћњ•ћQФ›ЌUPТQЭ’ЛЬќ\ФXЭ[Щ’ЛФYђSЭUђPPOHЋВљY€
+J‘XЫЫ\™\ЬЪ[Ы”Э™X[H€[€Ъ[™ЭКJHВ€›ЭИ™]И\њ›ЬЉ•\Ињ›ЭЬЩ\€Щ\И›ЭЭ\ЬќXЫЫ\™\ЬЪ[Ы”Э™X[KЪXЪ\И™\]Z\™Y›Ь€HЭXљ[^™YФ“Hќ[™K€ЉNВџBЫЫњЭћ]\ИHZ[ќ\њ^K™њ›ЫJ]ШЉ^[ШY
+KЪ\€O€Ъ\‹Ъ\ђЫЩP]
+
+JNВЫЫњЭЭ™X[HH™]И›ШЉШћ]\ЧJKњЭ™X[J
+Kњ\U›ЭYЪ
+™]ИXЫЫ\™\ЬЪ[Ы”Э™X[J™Юљ\ЉJNВЫЫњЭЫЭ\ЩHH]ШZ]™]И™\ЬЫњЩJЭ™X[JKќ^
+
+NВЫЫњЭ[Щ[U\›HT“Ь™X]SШљ™XЭT“
+™]И›ШЉЬЫЭ\ЩWKИ\N€ќ^Ъ]\ШЬљ\€JJNВќћHВ€]ШZ][\Ьќ
+[Щ[U\›
+NВџHљ[[HВ€Щ][Y[Э]
+
+
+HO€T“њ™]›ЪЩSШљ™XЭT“
+[Щ[U\›
+KL
+NВџCB
