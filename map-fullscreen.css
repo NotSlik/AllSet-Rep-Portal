@@ -1,162 +1,19 @@
-/* Older normal Leaflet map style plus safe fullscreen rebuild. */
-
-/* Normal CRM map layout restored from the older local styles. */
-.mapPageGrid{
-  height:calc(100vh - 88px);
-  display:grid;
-  grid-template-columns:320px minmax(0,1fr);
-  gap:12px;
-}
-.mapSide{
-  overflow:auto;
-}
-.mapWrap{
-  border-radius:18px;
-  overflow:hidden;
-  border:1px solid var(--border);
-  box-shadow:0 18px 55px rgba(0,0,0,.25);
-  min-height:360px;
-}
-#map{
+/* Fullscreen tactical Live Map rebuild */
+body.map-mode,
+body.map-mode html{
   height:100%;
   width:100%;
-  background:#d7dbe2;
-}
-.legend{
-  display:grid;
-  grid-template-columns:1fr;
-  gap:8px;
-}
-.legItem{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  font-size:12px;
-  color:rgba(255,255,255,.85);
-}
-.sw{
-  width:12px;
-  height:12px;
-  border-radius:999px;
-  border:2px solid rgba(255,255,255,.55);
-  background:rgba(160,160,160,.65);
-}
-.sw-yes{border-color:rgba(34,197,94,.95);background:rgba(34,197,94,.85)}
-.sw-no{border-color:rgba(239,68,68,.95);background:rgba(239,68,68,.85)}
-.sw-nh{border-color:rgba(56,189,248,.95);background:rgba(56,189,248,.80)}
-.sw-cb{border-color:rgba(167,139,250,.95);background:rgba(167,139,250,.80)}
-.sw-none{border-color:rgba(255,255,255,.40);background:rgba(160,160,160,.65)}
-.leaflet-interactive{
-  outline:none;
-  cursor:pointer;
-}
-.leaflet-popup-content{
-  margin:10px 12px;
-  min-width:220px!important;
-  max-width:260px!important;
-}
-.compactLeafletPopup .leaflet-popup-content,
-.compactDotPopup .leaflet-popup-content{
-  min-width:230px!important;
-  max-width:290px!important;
-  margin:8px 10px!important;
-}
-.dotPopup,.territoryPopup,.mapMiniPopup{
-  display:grid;
-  gap:8px;
-  color:#0b1220;
-}
-.dotPopup input,.dotPopup textarea,.mapMiniPopup textarea{
-  background:#fff;
-  color:#0b1220;
-  border:1px solid rgba(15,23,42,.18);
-  border-radius:10px;
-  padding:9px;
-}
-.dotPopup textarea,.mapMiniPopup textarea{
-  min-height:58px;
-}
-.popupTitle{
-  font-weight:950;
-  font-size:14px;
-}
-.popupStatus{
-  font-size:12px;
-  opacity:.78;
-}
-.statusQuick,.statusGrid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:6px;
-}
-.popupActions{
-  display:grid;
-  gap:6px;
-}
-.statusQuick .popBtn,.popupActions .popBtn,.mapMiniPopup button{
-  padding:9px 8px;
-  font-size:12px;
-  min-height:38px;
-  border-radius:10px;
-}
-.leaflet-control-zoom a{
-  width:38px!important;
-  height:38px!important;
-  line-height:38px!important;
-}
-
-@media (max-width:1050px){
-  .mapPageGrid{
-    grid-template-columns:1fr;
-    height:auto;
-  }
-  .mapWrap{
-    height:62vh;
-    min-height:360px;
-  }
-}
-@media (max-width:720px){
-  .mapPageGrid{
-    height:calc(100vh - 86px)!important;
-    position:relative;
-    grid-template-columns:1fr!important;
-  }
-  .mapSide{
-    position:absolute;
-    left:10px;
-    top:10px;
-    z-index:600;
-    width:min(330px,calc(100vw - 20px));
-    max-height:48vh;
-    background:rgba(2,6,23,.94);
-    backdrop-filter:blur(12px);
-  }
-  body.light-mode .mapSide{
-    background:rgba(255,255,255,.96);
-  }
-  .mapWrap{
-    height:calc(100vh - 96px)!important;
-    min-height:560px;
-  }
-  .statusQuick,.statusGrid{
-    grid-template-columns:1fr;
-  }
-  .popBtn,.mapMiniPopup button{
-    min-height:40px;
-  }
-}
-
-/* Fullscreen rebuild. This is opt-in through body.map-mode, controlled by map-rebuild.js. */
-body.map-mode{
-  height:100dvh;
-  width:100vw;
   overflow:hidden!important;
   overscroll-behavior:none;
 }
+
 body.map-mode .topbar,
-body.map-mode #reviewHandle{
+body.map-mode .nav,
+body.map-mode #reviewHandle,
+body.map-mode .dashboardChatBtn{
   display:none!important;
 }
+
 body.map-mode .app,
 body.map-mode .shell,
 body.map-mode .main{
@@ -168,16 +25,18 @@ body.map-mode .main{
   margin:0!important;
   display:block!important;
 }
+
 body.map-mode #page-map.active{
   position:fixed;
   inset:0;
-  z-index:700;
+  z-index:950;
   display:block!important;
   height:100dvh;
   width:100vw;
   overflow:hidden!important;
   background:#07111d;
 }
+
 body.map-mode #page-map .mapPageGrid{
   position:absolute;
   inset:0;
@@ -186,6 +45,11 @@ body.map-mode #page-map .mapPageGrid{
   width:100vw!important;
   overflow:hidden!important;
 }
+
+body.map-mode #page-map .mapSide{
+  display:none!important;
+}
+
 body.map-mode #page-map .mapWrap{
   position:absolute;
   inset:0;
@@ -195,8 +59,10 @@ body.map-mode #page-map .mapWrap{
   border:0!important;
   border-radius:0!important;
   box-shadow:none!important;
+  overflow:hidden!important;
   background:#07111d;
 }
+
 body.map-mode #map{
   position:absolute;
   inset:0;
@@ -204,89 +70,379 @@ body.map-mode #map{
   width:100vw!important;
   z-index:1;
 }
-body.map-mode #page-map .mapSide{
-  position:absolute;
-  top:max(64px,calc(env(safe-area-inset-top) + 56px));
-  left:12px;
-  z-index:760;
-  width:min(330px,calc(100vw - 24px));
-  max-height:calc(100dvh - 150px);
-  overflow:auto;
-  border-radius:16px;
-  background:rgba(2,6,23,.90);
-  border:1px solid rgba(255,255,255,.16);
-  box-shadow:0 18px 55px rgba(0,0,0,.38);
-  backdrop-filter:blur(12px);
-  transition:transform .18s ease,opacity .18s ease;
-}
-body.map-mode #page-map.map-controls-collapsed .mapSide{
-  transform:translateX(calc(-100% - 24px));
-  opacity:.04;
+
+.mapHudTop{
+  position:fixed;
+  top:max(10px,env(safe-area-inset-top));
+  left:50%;
+  transform:translateX(-50%);
+  width:min(720px,calc(100vw - 18px));
+  z-index:1250;
+  display:grid;
+  gap:7px;
   pointer-events:none;
 }
-.mapFullscreenTools{
-  position:fixed;
-  top:max(12px,env(safe-area-inset-top));
-  left:12px;
-  z-index:1550;
+
+.mapSearchShell,
+.mapLegend,
+.mapMiniCounters{
+  pointer-events:auto;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(8,13,23,.74);
+  backdrop-filter:blur(18px) saturate(1.15);
+  box-shadow:0 16px 45px rgba(0,0,0,.28);
+}
+
+.mapSearchShell{
+  display:grid;
+  grid-template-columns:1fr 44px;
+  gap:7px;
+  padding:7px;
+  border-radius:18px;
+}
+
+.mapSearchShell input{
+  height:44px;
+  border-radius:14px;
+  padding:0 14px;
+  background:rgba(255,255,255,.96);
+  color:#07111d;
+  border:1px solid rgba(255,255,255,.55);
+  font-weight:750;
+}
+
+.mapSearchShell button,
+.mapIsland button{
+  display:grid;
+  place-items:center;
+  border:0;
+  background:#fff;
+  color:#07111d;
+  box-shadow:0 7px 18px rgba(0,0,0,.18),inset 0 -1px 0 rgba(0,0,0,.10);
+  transition:transform .14s ease, box-shadow .14s ease, background .14s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.mapSearchShell button{
+  height:44px;
+  width:44px;
+  border-radius:14px;
+  font-size:18px;
+}
+
+.mapSearchShell button:active,
+.mapIsland button:active{
+  transform:scale(.94);
+}
+
+.mapLegend{
+  border-radius:16px;
+  padding:7px 9px;
+  display:flex;
+  gap:9px;
+  align-items:center;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+
+.mapLegend::-webkit-scrollbar{display:none}
+
+.mapLegend span{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  color:#f8fbff;
+  font-size:11px;
+  font-weight:850;
+  white-space:nowrap;
+}
+
+.mapLegend i,
+.mapMiniCounters i{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  display:inline-block;
+  box-shadow:0 0 0 2px rgba(255,255,255,.22);
+}
+
+.dot-yes{background:#22c55e}.dot-no{background:#ef4444}.dot-nothome{background:#38bdf8}.dot-callback{background:#a855f7}.dot-none{background:#9ca3af}
+
+.mapMiniCounters{
+  justify-self:center;
+  border-radius:999px;
+  padding:5px 8px;
   display:flex;
   gap:8px;
+  align-items:center;
+  max-width:100%;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+
+.mapMiniCounters::-webkit-scrollbar{display:none}
+
+.mapMiniCounters span{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  color:#f8fbff;
+  font-size:11px;
+  font-weight:950;
+  white-space:nowrap;
+}
+
+.mapIsland{
+  position:fixed;
+  left:50%;
+  bottom:max(18px,calc(env(safe-area-inset-bottom) + 14px));
+  transform:translateX(-50%);
+  z-index:1250;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(6,10,18,.76);
+  backdrop-filter:blur(18px) saturate(1.2);
+  box-shadow:0 20px 60px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.12);
   pointer-events:auto;
 }
-.mapFullscreenTools button{
-  min-height:44px;
-  padding:0 14px;
+
+.mapIsland button{
+  width:48px;
+  height:48px;
   border-radius:999px;
-  background:rgba(255,255,255,.94);
+  font-size:22px;
+  line-height:1;
+}
+
+.mapIsland button.active{
+  background:#dff6ff;
+  box-shadow:0 0 0 3px rgba(56,189,248,.25),0 9px 22px rgba(56,189,248,.24),inset 0 -1px 0 rgba(0,0,0,.08);
+}
+
+.mapModeToast{
+  position:fixed;
+  left:50%;
+  bottom:max(88px,calc(env(safe-area-inset-bottom) + 82px));
+  transform:translateX(-50%);
+  z-index:1251;
+  max-width:min(420px,calc(100vw - 30px));
+  padding:9px 12px;
+  border-radius:999px;
+  color:#f8fbff;
+  font-size:12px;
+  font-weight:850;
+  text-align:center;
+  background:rgba(6,10,18,.78);
+  border:1px solid rgba(255,255,255,.18);
+  backdrop-filter:blur(12px);
+  box-shadow:0 12px 32px rgba(0,0,0,.34);
+}
+
+.allset-map-popup .leaflet-popup-content-wrapper{
+  border-radius:16px;
+  padding:0;
+  overflow:hidden;
+  box-shadow:0 18px 55px rgba(0,0,0,.32);
+}
+
+.allset-map-popup .leaflet-popup-content{
+  margin:0!important;
+  min-width:0!important;
+  max-width:none!important;
+}
+
+.mapPopup{
+  width:min(286px,calc(100vw - 44px));
+  padding:12px;
   color:#07111d;
-  border:1px solid rgba(255,255,255,.70);
-  box-shadow:0 12px 34px rgba(0,0,0,.28);
+}
+
+.mapPopup h3{
+  margin:0 0 7px;
+  font-size:15px;
+  line-height:1.15;
+}
+
+.mapPopup .mutedText{
+  color:#526173;
+  font-size:12px;
+  margin-bottom:8px;
+}
+
+.mapPopup input,
+.mapPopup select,
+.mapPopup textarea{
+  width:100%;
+  color:#07111d;
+  background:#f8fafc;
+  border:1px solid #d9e1ea;
+  border-radius:11px;
+  padding:9px;
   font-size:13px;
+  margin:5px 0;
+}
+
+.mapPopup textarea{
+  min-height:58px;
+  resize:vertical;
+}
+
+.mapStatusGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  margin-top:8px;
+}
+
+.mapPopup button{
+  min-height:38px;
+  border-radius:11px;
+  padding:8px 9px;
   font-weight:950;
 }
-body:not(.map-mode) .mapFullscreenTools{
-  display:none!important;
+
+.statusBtn{
+  color:#fff;
 }
-body.map-mode .nav.open{
-  display:flex!important;
-  position:fixed!important;
-  top:max(62px,calc(env(safe-area-inset-top) + 56px))!important;
-  left:12px!important;
-  right:auto!important;
-  z-index:1650!important;
-  width:min(340px,calc(100vw - 24px))!important;
-  max-height:calc(100dvh - 82px)!important;
-  overflow:auto!important;
-  background:rgba(2,6,23,.97)!important;
-  border:1px solid rgba(255,255,255,.20)!important;
-  box-shadow:0 24px 90px rgba(0,0,0,.55)!important;
+
+.statusBtn.yes{background:#22c55e}.statusBtn.no{background:#ef4444}.statusBtn.nothome{background:#38bdf8;color:#06101a}.statusBtn.callback{background:#a855f7}.statusBtn.none{background:#e5e7eb;color:#111827}
+
+.mapPopupActions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  margin-top:8px;
 }
-body.map-mode .leaflet-control-container .leaflet-top.leaflet-left{
-  top:116px;
+
+.mapPopupActions .full{grid-column:1/-1}
+
+.mapPlainBtn{background:#eef4fb;color:#07111d;border:1px solid #d9e1ea}
+.mapDangerBtn{background:#fee2e2;color:#7f1d1d;border:1px solid #fecaca}
+.mapSaveBtn{background:#07111d;color:#fff;border:1px solid #07111d}
+
+.leaflet-control-container .leaflet-top.leaflet-left{
+  top:132px;
 }
+
 body.map-mode .leaflet-control-zoom a,
 body.map-mode .leaflet-draw-toolbar a{
   width:42px!important;
   height:42px!important;
   line-height:42px!important;
-  border-radius:12px!important;
-  margin-bottom:6px!important;
+  border-radius:14px!important;
+  margin-bottom:7px!important;
+  box-shadow:0 10px 24px rgba(0,0,0,.22)!important;
+}
+
+body.map-mode .leaflet-bar{
+  border:0!important;
+  background:transparent!important;
+}
+
+@media (max-width:1050px){
+  .nav.open{
+    left:50%!important;
+    right:auto!important;
+    transform:translateX(-50%)!important;
+    width:min(390px,calc(100vw - 24px))!important;
+    max-height:calc(100dvh - 92px)!important;
+    align-items:stretch!important;
+  }
 }
 
 @media (max-width:520px){
-  body.map-mode #page-map .mapSide{
-    left:8px;
-    width:calc(100vw - 16px);
-    max-height:42vh;
+  .mapHudTop{
+    width:calc(100vw - 14px);
+    top:max(7px,env(safe-area-inset-top));
+    gap:6px;
   }
-  .mapFullscreenTools{
-    left:8px;
-    right:8px;
+  .mapSearchShell{
+    grid-template-columns:1fr 42px;
+    padding:6px;
+    border-radius:17px;
   }
-  .mapFullscreenTools button{
-    flex:1;
+  .mapSearchShell input,
+  .mapSearchShell button{
+    height:42px;
   }
-  body.map-mode .leaflet-control-container .leaflet-top.leaflet-left{
-    top:110px;
+  .mapLegend{
+    padding:6px 8px;
+    gap:8px;
+  }
+  .mapLegend span,
+  .mapMiniCounters span{
+    font-size:10.5px;
+  }
+  .mapIsland{
+    gap:6px;
+    padding:7px;
+    width:auto;
+    max-width:calc(100vw - 18px);
+  }
+  .mapIsland button{
+    width:43px;
+    height:43px;
+    font-size:20px;
+  }
+  .leaflet-control-container .leaflet-top.leaflet-left{
+    top:124px;
+  }
+}
+
+@media (max-width:390px){
+  .mapIsland button{
+    width:39px;
+    height:39px;
+    font-size:18px;
+  }
+  .mapIsland{
+    gap:5px;
+  }
+}
+
+@media (max-width:720px){
+  #page-dashboard .grid2{
+    grid-template-columns:1fr 1fr!important;
+  }
+  #page-dashboard .grid2 > .panel:nth-child(n+3){
+    grid-column:1 / -1;
+  }
+  #page-dashboard .podium{
+    grid-template-columns:1fr!important;
+    padding:10px;
+    gap:8px;
+  }
+  #page-dashboard .goalGauge{
+    min-height:188px;
+    padding:10px;
+  }
+  #page-dashboard .gaugeShell{
+    width:142px;
+    height:142px;
+  }
+  #page-dashboard .gaugeCenter{
+    width:104px;
+    height:104px;
+    padding:10px;
+  }
+  #page-dashboard .gaugeCenter strong{
+    font-size:24px;
+  }
+  #page-dashboard .podiumCard{
+    min-height:auto!important;
+    padding:10px 8px;
+  }
+  #page-dashboard .podiumName{
+    font-size:14px;
+  }
+  #page-dashboard .podiumMoney{
+    font-size:18px;
   }
 }
