@@ -13,9 +13,33 @@
         if (!response.ok) throw new Error(`Could not load CRM shell: ${response.status}`);
         return response.text();
       });
-      document.open();
-      document.write(html.replace("app.js?v=inlineboot", "app.js?v=loader436"));
-      document.close();
+
+      const parsed = new DOMParser().parseFromString(html.replace("app.js?v=inlineboot", "app.js?v=loader327"), "text/html");
+      const scripts = [...parsed.scripts].map(oldScript => ({
+        src: oldScript.getAttribute("src"),
+        type: oldScript.getAttribute("type"),
+        text: oldScript.textContent || ""
+      }));
+
+      document.head.innerHTML = parsed.head.innerHTML;
+      document.body.innerHTML = parsed.body.innerHTML;
+      document.querySelectorAll("script").forEach(script => script.remove());
+
+      for (const item of scripts) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          if (item.type) script.type = item.type;
+          if (item.src) {
+            script.src = item.src;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error(`Script failed: ${item.src}`));
+          } else {
+            script.textContent = item.text;
+            resolve();
+          }
+          document.body.appendChild(script);
+        });
+      }
     })().catch(err => {
       console.error("CRM shell failed:", err);
       document.body.textContent = "CRM failed to load. Please refresh.";
