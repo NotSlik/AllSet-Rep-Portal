@@ -22,8 +22,14 @@
       }));
 
       document.head.innerHTML = parsed.head.innerHTML;
+      const mapCss = document.createElement("link");
+      mapCss.rel = "stylesheet";
+      mapCss.href = "map-fullscreen.css?v=normal-map-fullscreen-1";
+      document.head.appendChild(mapCss);
+
       document.body.innerHTML = parsed.body.innerHTML;
       document.querySelectorAll("script").forEach(script => script.remove());
+      scripts.push({ src: "map-rebuild.js?v=normal-map-fullscreen-1", type: "module", text: "" });
 
       for (const item of scripts) {
         await new Promise((resolve, reject) => {
