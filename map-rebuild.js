@@ -262,11 +262,13 @@ function handleTool(tool){
   toastMap(msg);
 }
 function togglePortalMenu(){
-  const nav=$("nav"),btn=$("mobileNavBtn");
-  if(!nav)return;
-  const open=!nav.classList.contains("open");
-  nav.classList.toggle("open",open);
-  btn?.setAttribute("aria-expanded",open?"true":"false");
+  document.querySelector('.navBtn[data-page="dashboard"]')?.click();
+  document.querySelectorAll(".page").forEach(page=>page.classList.remove("active"));
+  $("page-dashboard")?.classList.add("active");
+  document.querySelectorAll(".navBtn").forEach(btn=>btn.classList.toggle("active",btn.dataset.page==="dashboard"));
+  $("nav")?.classList.remove("open");
+  $("mobileNavBtn")?.setAttribute("aria-expanded","false");
+  document.body.classList.remove("map-mode");
 }
 function setMode(next){mode=next;document.querySelectorAll("[data-map-tool]").forEach(b=>b.classList.toggle("active",b.dataset.mapTool===mode));}
 function startDraw(){
