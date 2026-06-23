@@ -436,7 +436,7 @@ async function saveSettings(){
 
 function initMap(){
   const mapContainer = $("map"); if(!mapContainer) return;
-  map = L.map("map",{zoomControl:true}).setView([41.5868,-93.6250],12);
+  map = L.map("map",{zoomControl:true}).setView([41.6611,-91.5302],12);
   L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap &copy; CARTO"}).addTo(map);
   neighborhoodLayer = new L.FeatureGroup(); dotLayer = new L.FeatureGroup(); map.addLayer(neighborhoodLayer); map.addLayer(dotLayer);
   map.on("click", async e => { if(!addDotMode) return; const id=`dot-${Date.now()}`; const dot={id,lat:e.latlng.lat,lng:e.latlng.lng,label:"",status:"none",createdBy:currentName,createdByUid:currentUid,createdAt:Date.now()}; await setDoc(doc(db,"dots",id),dot); await addRemoteLog(`➕ ${currentName} placed a dot`); toast("Dot placed — tap it to edit"); });
