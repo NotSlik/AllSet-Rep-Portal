@@ -83,6 +83,8 @@ function initStaticEvents(){
   if (nicknameInput) nicknameInput.addEventListener("keydown", e => { if(e.key === "Enter") enterBtn.click(); });
   if ($("changeNameBtn")) $("changeNameBtn").addEventListener("click", showGate);
   if (mobileNavBtn) mobileNavBtn.addEventListener("click", () => nav.classList.toggle("open"));
+  placeTopMenuButton();
+  simplifyMapControls();
   
   document.querySelectorAll(".navBtn").forEach(btn => btn.addEventListener("click", () => {
     if(btn.dataset.locked && currentRole !== "admin"){
@@ -110,13 +112,33 @@ function initStaticEvents(){
   
   initReviewEvents();
 
-  if ($("gpsBtn")) $("gpsBtn").addEventListener("click", () => gpsOn ? stopGps() : startGps());
-  if ($("addDotBtn")) $("addDotBtn").addEventListener("click", toggleAddDot);
+  if ($("gpsBtn")) $("gpsBtn").addEventListener("click", () => clickMapTool("gps", () => gpsOn ? stopGps() : startGps()));
+  if ($("addDotBtn")) $("addDotBtn").addEventListener("click", () => clickMapTool("add", toggleAddDot));
+  if ($("deleteDotBtn")) $("deleteDotBtn").addEventListener("click", () => clickMapTool("delete", () => toast("Trash mode: tap an unwanted house dot")));
   if ($("drawBtn")) $("drawBtn").addEventListener("click", toggleDraw);
   if ($("searchBtn")) $("searchBtn").addEventListener("click", doSearch);
   if ($("clearSearchBtn")) $("clearSearchBtn").addEventListener("click", clearSearch);
   if ($("searchInput")) $("searchInput").addEventListener("keydown", e => { if(e.key === "Enter") doSearch(); });
   if ($("clearLogBtn")) $("clearLogBtn").addEventListener("click", () => { if(currentRole !== "admin"){ toast("Only admins can clear the log"); return; } clearRemoteLog(); });
+}
+
+function placeTopMenuButton(){
+  if(!mobileNavBtn || !globalSearchBtn) return;
+  mobileNavBtn.setAttribute("aria-expanded","false");
+  globalSearchBtn.insertAdjacentElement("afterend", mobileNavBtn);
+}
+
+function simplifyMapControls(){
+  const add = $("addDotBtn"), gps = $("gpsBtn");
+  if(add) add.textContent = "House";
+  if(gps) gps.textContent = "Pin Current Location";
+  ["drawBtn","assignAreaBtn","undoDrawBtn","clearTerritoriesBtn"].forEach(id => $(id)?.classList.add("hidden"));
+}
+
+function clickMapTool(tool, fallback){
+  const button = document.querySelector(`[data-map-tool="${tool}"]`);
+  if(button){ button.click(); return; }
+  fallback?.();
 }
 
 async function handleEnter(){
@@ -491,12 +513,12 @@ function syncNeighborhoodLayers(){
 }
 
 function bindNeighborhoodInteractions(nbId, layer){ layer._nbId=nbId; layer.on("click",()=>{ const nb=neighborhoodsCache[nbId]; const isAssigned=assignedNbId===nbId; const html=`<div style="min-width:230px"><div style="font-weight:950;margin-bottom:6px">${esc(nb.name)}</div><div style="display:grid;gap:7px"><button class="popBtn" data-a="${isAssigned?"unassign":"assign"}" type="button">${isAssigned?"🚫 Unassign Me":"✅ Assign Me Here"}</button><button class="popBtn popBtn--danger" data-a="delete" type="button">🗑 Delete Territory</button></div></div>`; layer.bindPopup(L.popup({closeButton:true,autoPan:true}).setContent(html)).openPopup(); setTimeout(()=>{ const root=document.querySelector(".leaflet-popup-content"); root?.querySelectorAll("button[data-a]").forEach(btn=>btn.addEventListener("click",async()=>{ const a=btn.dataset.a; if(a==="assign"){assignedNbId=nbId; await setDoc(doc(db,"reps",currentUid),{assignedNeighborhoodId:nbId},{merge:true}); await addRemoteLog(`🧭 ${currentName} assigned to ${nb.name}`);} if(a==="unassign"){assignedNbId=null; await setDoc(doc(db,"reps",currentUid),{assignedNeighborhoodId:null},{merge:true}); await addRemoteLog(`🧭 ${currentName} unassigned`);} if(a==="delete" && confirm(`Delete ${nb.name}?`)){await deleteDoc(doc(db,"neighborhoods",nbId)); await addRemoteLog(`🗑 ${currentName} deleted territory ${nb.name}`);} map.closePopup(); refreshAssignedText(); })); },0); }); }
-function toggleAddDot(){ addDotMode=!addDotMode; if($("addDotBtn")) $("addDotBtn").textContent=addDotMode?"✓ Add Dot ON":"+ Add Dot"; toast(addDotMode?"Add Dot ON — tap map":"Add Dot OFF"); }
+function toggleAddDot(){ addDotMode=!addDotMode; if($("addDotBtn")) $("addDotBtn").textContent=addDotMode?"House: Tap Map":"House"; toast(addDotMode?"House mode: tap the map":"House mode off"); }
 function toggleDraw(){ drawEnabled=!drawEnabled; if(drawEnabled){ if(map) map.addControl(drawControl); if($("drawBtn")) $("drawBtn").textContent="✏️ Draw ON";}else{ if(map) map.removeControl(drawControl); if($("drawBtn")) $("drawBtn").textContent="✏️ Draw Territory";} }
 function doSearch(){ const q=$("searchInput").value.trim().toLowerCase(); if(!q) return; const match=Object.values(dotsCache).find(d=>(d.label||"").toLowerCase().includes(q)); if(!match) return toast("No map match"); const marker=markerById.get(match.id); if(map) map.setView([match.lat,match.lng],Math.max(map.getZoom(),17)); if(marker) marker.setStyle({...dotStyle(match.status),radius:10,weight:3}); lastFoundMarker=marker; toast(`Found: ${match.label||match.id}`); }
 function clearSearch(){ if($("searchInput")) $("searchInput").value=""; if(lastFoundMarker) syncDotMarkers(); }
-function startGps(){ if(!navigator.geolocation) return toast("GPS not supported"); gpsOn=true; if($("gpsBtn")) $("gpsBtn").textContent="GPS: On"; gpsWatchId=navigator.geolocation.watchPosition(pos=>{ const {latitude,longitude,accuracy}=pos.coords; const latlng=[latitude,longitude]; if(!gpsMarker){gpsMarker=L.circleMarker(latlng,{radius:7,weight:3,color:"rgba(56,189,248,.95)",fillColor:"rgba(56,189,248,.55)",fillOpacity:1}).addTo(map).bindTooltip(`${currentName} (you)`); gpsCircle=L.circle(latlng,{radius:Math.max(accuracy,15),weight:1,color:"rgba(56,189,248,.35)",fillColor:"rgba(56,189,248,.12)",fillOpacity:1}).addTo(map);}else{gpsMarker.setLatLng(latlng);gpsCircle.setLatLng(latlng);gpsCircle.setRadius(Math.max(accuracy,15));}},err=>{toast(`GPS error: ${err.message}`);stopGps();},{enableHighAccuracy:true,maximumAge:5000,timeout:15000}); }
-function stopGps(){ gpsOn=false; if($("gpsBtn")) $("gpsBtn").textContent="GPS: Off"; if(gpsWatchId!=null) navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; if(gpsMarker && map) map.removeLayer(gpsMarker); if(gpsCircle && map) map.removeLayer(gpsCircle); gpsMarker=null; gpsCircle=null; }
+function startGps(){ if(!navigator.geolocation) return toast("GPS not supported"); gpsOn=true; if($("gpsBtn")) $("gpsBtn").textContent="Pin: On"; gpsWatchId=navigator.geolocation.watchPosition(pos=>{ const {latitude,longitude,accuracy}=pos.coords; const latlng=[latitude,longitude]; if(!gpsMarker){gpsMarker=L.circleMarker(latlng,{radius:7,weight:3,color:"rgba(56,189,248,.95)",fillColor:"rgba(56,189,248,.55)",fillOpacity:1}).addTo(map).bindTooltip(`${currentName} (you)`); gpsCircle=L.circle(latlng,{radius:Math.max(accuracy,15),weight:1,color:"rgba(56,189,248,.35)",fillColor:"rgba(56,189,248,.12)",fillOpacity:1}).addTo(map);}else{gpsMarker.setLatLng(latlng);gpsCircle.setLatLng(latlng);gpsCircle.setRadius(Math.max(accuracy,15));}},err=>{toast(`GPS error: ${err.message}`);stopGps();},{enableHighAccuracy:true,maximumAge:5000,timeout:15000}); }
+function stopGps(){ gpsOn=false; if($("gpsBtn")) $("gpsBtn").textContent="Pin Current Location"; if(gpsWatchId!=null) navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; if(gpsMarker && map) map.removeLayer(gpsMarker); if(gpsCircle && map) map.removeLayer(gpsCircle); gpsMarker=null; gpsCircle=null; }
 
 function renderCounts(){ const c={yes:0,no:0,nothome:0,callback:0,knocked:0,skip:0}; Object.values(dotsCache).forEach(d=>{if(d.status in c)c[d.status]++;}); if($("countYes"))$("countYes").textContent=c.yes; if($("countNo"))$("countNo").textContent=c.no; if($("countNotHome"))$("countNotHome").textContent=c.nothome; if($("countCallback"))$("countCallback").textContent=c.callback; if($("countKnocked"))$("countKnocked").textContent=c.knocked; if($("countSkip"))$("countSkip").textContent=c.skip; }
 function refreshAssignedText(){ if(!assignedTextEl) return; if(!assignedNbId) assignedTextEl.textContent="None"; else assignedTextEl.textContent=neighborhoodsCache[assignedNbId]?.name||"None"; }

@@ -60,7 +60,7 @@ function snapObj(s){const o={};s.forEach(d=>o[d.id]={...d.data(),id:d.data().id|
 function ensureHud(){
   const page=$("page-map");if(!page)return;
   if(!$("mapHudTop"))page.insertAdjacentHTML("afterbegin",`<div id="mapHudTop" class="mapHudTop"><div class="mapSearchShell"><input id="mapHudSearch" placeholder="Search address, customer, rep, or dot" autocomplete="off" /><button id="mapHudSearchBtn" type="button" title="Search">⌕</button></div><div class="mapLegend" aria-label="Map legend"><span><i class="dot-yes"></i>Yes</span><span><i class="dot-no"></i>No</span><span><i class="dot-nothome"></i>Not Home</span><span><i class="dot-callback"></i>Callback</span><span><i class="dot-none"></i>Unmarked</span></div><div class="mapMiniCounters"><span><i class="dot-yes"></i><b id="hudCountYes">0</b></span><span><i class="dot-no"></i><b id="hudCountNo">0</b></span><span><i class="dot-nothome"></i><b id="hudCountNotHome">0</b></span><span><i class="dot-callback"></i><b id="hudCountCallback">0</b></span></div></div>`);
-  if(!$("mapIsland"))page.insertAdjacentHTML("beforeend",`<div id="mapIsland" class="mapIsland" aria-label="Live Map toolbar"><button data-map-tool="add" type="button" title="Add house">🏠</button><button data-map-tool="draw" type="button" title="Draw area">🗺</button><button data-map-tool="assign" type="button" title="Assign area">👤</button><button data-map-tool="gps" type="button" title="GPS">📍</button><button data-map-tool="edit" type="button" title="Edit mode">✏️</button><button data-map-tool="delete" type="button" title="Delete mode">🗑</button></div>`);
+  if(!$("mapIsland"))page.insertAdjacentHTML("beforeend",`<div id="mapIsland" class="mapIsland" aria-label="Live Map toolbar"><button data-map-tool="add" type="button" title="House">House</button><button data-map-tool="gps" type="button" title="Pin current location">Pin</button><button data-map-tool="delete" type="button" title="Trash unwanted house dots">Trash</button></div>`);
   if(!$("mapModeToast"))page.insertAdjacentHTML("beforeend",`<div id="mapModeToast" class="mapModeToast hidden"></div>`);
 }
 
@@ -255,9 +255,9 @@ async function deleteTerritory(id){
 
 function handleTool(tool){
   if(tool==="gps"){toggleGps();return;}
-  if(tool==="draw"){setMode("draw");startDraw();return;}
+  if(!["add","delete"].includes(tool)) return;
   setMode(mode===tool?"":tool);
-  const msg={add:"Add House: tap the map.",assign:"Assign mode: tap a territory.",edit:"Edit mode: tap a house or territory.",delete:"Delete mode: tap one house or territory."}[mode]||"Map mode off";
+  const msg={add:"House mode: tap the map.",delete:"Trash mode: tap an unwanted house dot."}[mode]||"Map mode off";
   toastMap(msg);
 }
 function setMode(next){mode=next;document.querySelectorAll("[data-map-tool]").forEach(b=>b.classList.toggle("active",b.dataset.mapTool===mode));}
