@@ -214,12 +214,11 @@ body.map-mode #map{
 }
 
 .mapIsland button{
-  min-width:58px;
-  width:auto;
+  width:48px;
   height:48px;
   border-radius:999px;
-  padding:0 14px;
-  font-size:12px;
+  padding:0;
+  font-size:22px;
   font-weight:950;
   line-height:1;
 }
