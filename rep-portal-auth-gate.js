@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
@@ -43,6 +43,7 @@ function injectGate(){
         <input id="firebaseLoginEmail" autocomplete="username" placeholder="laith or name@example.com" />
         <label for="firebaseLoginPassword">Password</label>
         <input id="firebaseLoginPassword" type="password" autocomplete="current-password" placeholder="Password" />
+        <label class="firebaseRemember"><input id="firebaseRememberDevice" type="checkbox" checked /> <span>Remember this device</span></label>
         <div class="firebaseAuthButtons">
           <button id="firebaseLoginBtn" type="button">Log In</button>
           <button id="firebaseCreateBtn" type="button">Create Account</button>
@@ -67,12 +68,14 @@ async function handleAuth(mode){
   const emailInput = document.getElementById("firebaseLoginEmail");
   const passwordInput = document.getElementById("firebaseLoginPassword");
   const status = document.getElementById("firebaseAuthStatus");
+  const remember = document.getElementById("firebaseRememberDevice")?.checked !== false;
   const email = normalizeLoginEmail(emailInput?.value || "");
   const password = passwordInput?.value || "";
   if(!email){ setStatus("Enter a username or email."); emailInput?.focus(); return; }
   if(password.length < 6){ setStatus("Password must be at least 6 characters."); passwordInput?.focus(); return; }
   setStatus(mode === "create" ? "Creating account..." : "Logging in...");
   try{
+    await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
     if(mode === "create") await createUserWithEmailAndPassword(auth, email, password);
     else await signInWithEmailAndPassword(auth, email, password);
     setStatus("Signed in.");
@@ -131,8 +134,10 @@ function injectCss(){
     .firebaseAuthTitle{font-weight:900;font-size:22px;line-height:1.1}
     .firebaseAuthSub{color:rgba(255,255,255,.68);font-size:13px;margin-top:3px}
     .firebaseAuthCard label{display:block;font-size:13px;font-weight:800;margin:13px 0 6px;color:rgba(255,255,255,.82)}
-    .firebaseAuthCard input{width:100%;box-sizing:border-box;border:1px solid rgba(255,255,255,.16);border-radius:13px;background:rgba(255,255,255,.08);color:#fff;padding:12px 13px;font:inherit;outline:none}
+    .firebaseAuthCard input:not([type="checkbox"]){width:100%;box-sizing:border-box;border:1px solid rgba(255,255,255,.16);border-radius:13px;background:rgba(255,255,255,.08);color:#fff;padding:12px 13px;font:inherit;outline:none}
     .firebaseAuthCard input:focus{border-color:rgba(34,211,238,.75);box-shadow:0 0 0 3px rgba(34,211,238,.15)}
+    .firebaseRemember{display:flex!important;align-items:center;gap:9px;margin-top:12px!important;font-weight:800!important;color:rgba(255,255,255,.78)!important}
+    .firebaseRemember input{width:18px;height:18px;accent-color:#22d3ee}
     .firebaseAuthButtons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
     .firebaseAuthButtons button{border:0;border-radius:13px;padding:12px 10px;font-weight:900;color:#fff;background:linear-gradient(135deg,#7c3aed,#06b6d4);cursor:pointer}
     .firebaseAuthButtons button+button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14)}
