@@ -107,7 +107,6 @@ function renderAll(){
   if(rendering) return;
   rendering = true;
   try{
-    renderCustomers();
     renderJobs();
     renderBoard();
   } finally {
