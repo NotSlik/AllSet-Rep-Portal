@@ -1,19 +1,13 @@
-import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
-  authDomain: "allsetrepportal.firebaseapp.com",
-  projectId: "allsetrepportal",
-  storageBucket: "allsetrepportal.firebasestorage.app",
-  messagingSenderId: "590070052736",
-  appId: "1:590070052736:web:193a9edb6fd378fbd27365",
-  measurementId: "G-SY45913J3Z",
-  databaseURL: "https://allsetrepportal-default-rtdb.firebaseio.com"
-};
+const LS_NAME = "allset_rep_name";
+const LS_ROLE = "allset_rep_role";
 
-const app = getApps()[0] || initializeApp(firebaseConfig);
-const auth = getAuth(app);
+let auth = null;
+let db = null;
+let lastRepAuthSignature = "";
 
 bootAuthGate();
 
@@ -21,10 +15,23 @@ function bootAuthGate(){
   injectCss();
   injectGate();
   wireGate();
+  waitForCrmFirebaseApp();
+}
+
+function waitForCrmFirebaseApp(){
+  const app = getApps()[0];
+  if(!app) return setTimeout(waitForCrmFirebaseApp, 60);
+  auth = getAuth(app);
+  db = getFirestore(app);
   onAuthStateChanged(auth, user => {
-    if(user && !user.isAnonymous) hideAuthGate();
-    else showAuthGate();
+    if(user && !user.isAnonymous){
+      hideAuthGate();
+      syncRepAuthMarker();
+    } else {
+      showAuthGate();
+    }
   });
+  setInterval(syncRepAuthMarker, 1500);
 }
 
 function injectGate(){
@@ -71,6 +78,7 @@ async function handleAuth(mode){
   const remember = document.getElementById("firebaseRememberDevice")?.checked !== false;
   const email = normalizeLoginEmail(emailInput?.value || "");
   const password = passwordInput?.value || "";
+  if(!auth){ setStatus("CRM is still loading. Try again in a second."); return; }
   if(!email){ setStatus("Enter a username or email."); emailInput?.focus(); return; }
   if(password.length < 6){ setStatus("Password must be at least 6 characters."); passwordInput?.focus(); return; }
   setStatus(mode === "create" ? "Creating account..." : "Logging in...");
@@ -80,10 +88,33 @@ async function handleAuth(mode){
     else await signInWithEmailAndPassword(auth, email, password);
     setStatus("Signed in.");
     hideAuthGate();
+    syncRepAuthMarker();
   }catch(error){
     setStatus(readableAuthError(error));
     status?.classList.add("error");
   }
+}
+
+async function syncRepAuthMarker(){
+  const user = auth?.currentUser;
+  if(!user || user.isAnonymous || !db) return;
+  const name = String(localStorage.getItem(LS_NAME) || "").trim();
+  const role = String(localStorage.getItem(LS_ROLE) || "rep").trim() || "rep";
+  if(!name) return;
+  const provider = user.providerData?.[0]?.providerId || "password";
+  const email = user.email || "";
+  const signature = [user.uid, email, provider, name, role].join("|");
+  if(signature === lastRepAuthSignature) return;
+  lastRepAuthSignature = signature;
+  await setDoc(doc(db, "reps", user.uid), {
+    uid: user.uid,
+    name,
+    role: name.toLowerCase() === "laith" ? "admin" : role,
+    email,
+    authProvider: provider,
+    isAnonymous: false,
+    updatedAt: serverTimestamp()
+  }, { merge: true }).catch(() => {});
 }
 
 function normalizeLoginEmail(value){
