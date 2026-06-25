@@ -11,3 +11,5 @@
   };
   L.Map.__allsetBridge = true;
 })();
+
+import("./rep-portal-fixes.js?v=20260624-crm-workflow-fixes").catch(err => console.warn("AllSet fixes failed to load", err));
