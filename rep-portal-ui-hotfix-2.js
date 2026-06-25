@@ -19,12 +19,12 @@ const db = getFirestore(app);
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 const money = n => "$" + Number(n || 0).toLocaleString();
-const now = () => Date.now();
 
 let uid = "";
 let jobs = {};
 let customers = {};
 let reps = {};
+let leads = {};
 let rendering = false;
 let subscribed = false;
 
@@ -43,7 +43,7 @@ function bootUiHotfix2(){
   setInterval(() => {
     forceStableAdminRole();
     renderAll();
-  }, 1300);
+  }, 900);
 }
 
 function subscribe(){
@@ -52,6 +52,7 @@ function subscribe(){
   onSnapshot(collection(db, "jobs"), snap => { jobs = snapObj(snap); renderAll(); });
   onSnapshot(collection(db, "customers"), snap => { customers = snapObj(snap); renderAll(); });
   onSnapshot(collection(db, "reps"), snap => { reps = snapObj(snap); renderAll(); });
+  onSnapshot(collection(db, "leads"), snap => { leads = snapObj(snap); renderAll(); });
 }
 
 function snapObj(snap){
@@ -67,6 +68,14 @@ function captureClicks(event){
     event.stopPropagation();
     event.stopImmediatePropagation();
     openCustomerModal();
+    return;
+  }
+  const exportCustomers = target.closest?.(".exportCustomersIrsFullBtn");
+  if(exportCustomers){
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    exportCustomersIrsCsv();
     return;
   }
   const editCustomer = target.closest?.(".customerEditFullBtn");
@@ -117,6 +126,13 @@ function captureClicks(event){
     deleteCleanerRecord(deleteCleaner.dataset.id, deleteCleaner.dataset.name || "cleaner");
     return;
   }
+  const deleteLeaderboard = target.closest?.(".deleteLeaderboardRepBtn");
+  if(deleteLeaderboard){
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    deleteRepRecord(deleteLeaderboard.dataset.id, deleteLeaderboard.dataset.name || "rep");
+  }
 }
 
 function renderAll(){
@@ -126,6 +142,7 @@ function renderAll(){
     renderCustomers();
     renderJobs();
     renderBoard();
+    renderLeaderboard();
   } finally {
     setTimeout(() => rendering = false, 0);
   }
@@ -135,7 +152,8 @@ function renderCustomers(){
   const table = $("customersTable");
   if(!table) return;
   const rows = Object.values(customers).sort((a,b) => dateVal(b.jobDate || b.completedAt || b.lastCleanedAt || b.createdAt) - dateVal(a.jobDate || a.completedAt || a.lastCleanedAt || a.createdAt)).map(customer => `<tr><td>${esc(readableDate(customer.jobDate || customer.completedAt || customer.lastCleanedAt || customer.createdAt) || "-")}</td><td><strong>${esc(customer.name || customer.customer || "Customer")}</strong><br><span class="muted">${esc(customer.phone || "")}</span></td><td>${esc(customer.address || "-")}</td><td>${esc(customer.service || customer.title || "Window Cleaning")}</td><td>${money(customer.price || customer.amount || customer.lifetimeRevenue || 0)}</td><td>${esc(customer.paid || customer.paymentStatus || customer.status || "-")}</td><td>${esc(customer.paymentMethod || customer.method || "-")}</td><td>${esc(customer.repName || customer.rep || "-")}</td><td>${esc(customer.cleanerName || customer.cleaner || "-")}</td><td><div class="tableActions"><button class="ghostBtn smallBtn customerEditFullBtn" data-id="${esc(customer.id)}">Edit</button><button class="actionBtn smallBtn mbtJobStrictBtn" data-id="${esc(customer.id)}">MBT Job</button></div></td></tr>`);
-  table.innerHTML = rows.length ? `<table class="dataTable"><thead><tr><th>Job Date</th><th>Customer</th><th>Address</th><th>Service</th><th>Price</th><th>Paid</th><th>Payment Method</th><th>Rep</th><th>Cleaner</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No customers yet.</div>`;
+  const toolbar = `<div class="tableToolbar"><button class="ghostBtn smallBtn exportCustomersIrsFullBtn" type="button">Export IRS CSV</button></div>`;
+  table.innerHTML = toolbar + (rows.length ? `<table class="dataTable"><thead><tr><th>Job Date</th><th>Customer</th><th>Address</th><th>Service</th><th>Price</th><th>Paid</th><th>Payment Method</th><th>Rep</th><th>Cleaner</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No customers yet.</div>`);
 }
 
 function renderJobs(){
@@ -163,20 +181,62 @@ function renderBoard(){
   const cleaners = new Map();
   Object.entries(reps).forEach(([id, rep]) => {
     if(rep.role !== "cleaner") return;
-    if(isAdminName(rep.name || rep.displayName || id)) return;
-    const key = stableKey(rep.name || rep.displayName || id) || id;
-    cleaners.set(key, { id, key, name: rep.name || rep.displayName || "Cleaner", claimed: 0, completed: 0, earned: 0, repDocId: id });
+    const displayName = rep.name || rep.displayName || id;
+    if(isLaithName(displayName)) return;
+    const key = stableKey(displayName) || id;
+    cleaners.set(key, { id, key, name: displayName, claimed: 0, completed: 0, earned: 0, repDocId: id });
   });
   Object.values(jobs).forEach(job => addBoardJob(cleaners, job));
   Object.values(customers).forEach(customer => addBoardCustomer(cleaners, customer));
   const admin = isAdminish();
-  const rows = [...cleaners.values()].sort((a,b) => b.earned - a.earned || b.completed - a.completed).map(row => `<tr><td><strong>${esc(row.name)}</strong></td><td>${row.claimed}</td><td>${row.completed}</td><td>${money(row.earned)}</td>${admin ? `<td>${row.repDocId ? `<button class="dangerBtn smallBtn deleteBoardCleanerBtn" data-id="${esc(row.repDocId)}" data-name="${esc(row.name)}">Delete</button>` : ""}</td>` : ""}</tr>`);
+  const rows = [...cleaners.values()].sort((a,b) => b.earned - a.earned || b.completed - a.completed).map(row => `<tr><td><strong>${esc(row.name)}</strong></td><td>${row.claimed}</td><td>${row.completed}</td><td>${money(row.earned)}</td>${admin ? `<td>${row.repDocId ? `<button class="dangerBtn smallBtn deleteBoardCleanerBtn" data-id="${esc(row.repDocId)}" data-name="${esc(row.name)}">Delete</button>` : `<span class="muted">History only</span>`}</td>` : ""}</tr>`);
   table.innerHTML = rows.length ? `<table class="dataTable"><thead><tr><th>Cleaner</th><th>Jobs Claimed</th><th>Jobs Completed</th><th>Amount Earned</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No cleaner board data yet.</div>`;
 }
 
+function renderLeaderboard(){
+  const table = $("leaderboardTable");
+  if(!table) return;
+  const repsByKey = new Map();
+  Object.entries(reps).forEach(([id, rep]) => {
+    if(rep.role === "cleaner") return;
+    const displayName = isLaithName(rep.name || rep.displayName || id) ? "Laith" : (rep.name || rep.displayName || "Rep");
+    const key = stableKey(displayName) || id;
+    if(!repsByKey.has(key)) repsByKey.set(key, { key, ids: [], name: displayName, revenue: 0, sold: 0, converted: 0, total: 0, repDocId: id });
+    const row = repsByKey.get(key);
+    row.ids.push(id);
+    if(!row.repDocId || !isLaithName(displayName)) row.repDocId = id;
+  });
+  Object.values(leads).forEach(lead => {
+    const key = stableKey(lead.repName || reps[lead.repId]?.name || lead.repId || "unknown");
+    if(!repsByKey.has(key)) repsByKey.set(key, { key, ids: [], name: cleanDisplayName(lead.repName || reps[lead.repId]?.name || "Rep"), revenue: 0, sold: 0, converted: 0, total: 0, repDocId: findRepDocId(lead.repName, lead.repId) });
+    const row = repsByKey.get(key);
+    row.total++;
+    if(["sold", "converted", "yes"].includes(String(lead.status || "").toLowerCase())){
+      row.converted++;
+      row.revenue += Number(lead.quote || lead.amount || lead.price || 0);
+    }
+  });
+  Object.values(jobs).forEach(job => {
+    const key = stableKey(job.repName || reps[job.repId]?.name || job.repId || "unknown");
+    if(!repsByKey.has(key)) repsByKey.set(key, { key, ids: [], name: cleanDisplayName(job.repName || reps[job.repId]?.name || "Rep"), revenue: 0, sold: 0, converted: 0, total: 0, repDocId: findRepDocId(job.repName, job.repId) });
+    const row = repsByKey.get(key);
+    if(["open", "claimed", "in_progress", "completed"].includes(jobStatus(job.status))) row.sold++;
+    row.revenue += Number(job.price || job.amount || job.quote || 0);
+  });
+  Object.values(customers).forEach(customer => {
+    const key = stableKey(customer.repName || customer.rep || "unknown");
+    if(!repsByKey.has(key)) repsByKey.set(key, { key, ids: [], name: cleanDisplayName(customer.repName || customer.rep || "Rep"), revenue: 0, sold: 0, converted: 0, total: 0, repDocId: findRepDocId(customer.repName || customer.rep, "") });
+    const row = repsByKey.get(key);
+    row.revenue += Number(customer.price || customer.amount || customer.lifetimeRevenue || 0);
+  });
+  const admin = isAdminish();
+  const rows = [...repsByKey.values()].sort((a,b) => b.revenue - a.revenue || b.sold - a.sold).map(row => `<tr><td><strong>${esc(row.name)}</strong></td><td>${money(row.revenue)}</td><td>${row.sold}</td><td>${row.converted}</td><td>${row.total ? Math.round(row.converted / row.total * 100) : 0}%</td>${admin ? `<td>${row.repDocId && !isLaithName(row.name) ? `<button class="dangerBtn smallBtn deleteLeaderboardRepBtn" data-id="${esc(row.repDocId)}" data-name="${esc(row.name)}">Delete</button>` : ""}</td>` : ""}</tr>`);
+  table.innerHTML = rows.length ? `<table class="dataTable"><thead><tr><th>Rep</th><th>Revenue</th><th>Sold Jobs</th><th>Leads Converted</th><th>Close Rate</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No leaderboard data yet.</div>`;
+}
+
 function addBoardJob(cleaners, job){
-  const cleanerName = job.cleanerName || job.cleaner || "";
-  if(!cleanerName || isAdminName(cleanerName)) return;
+  const cleanerName = cleanDisplayName(job.cleanerName || job.cleaner || "");
+  if(!cleanerName || isLaithName(cleanerName)) return;
   const key = stableKey(cleanerName) || job.cleanerId || cleanerName;
   if(!cleaners.has(key)) cleaners.set(key, { id: job.cleanerId || "", key, name: cleanerName, claimed: 0, completed: 0, earned: 0, repDocId: findRepDocId(cleanerName, job.cleanerId) });
   const row = cleaners.get(key);
@@ -190,8 +250,8 @@ function addBoardJob(cleaners, job){
 
 function addBoardCustomer(cleaners, customer){
   const pay = cleanerPay(customer);
-  const cleanerName = customer.cleanerName || customer.cleaner || "";
-  if(!pay || !cleanerName || isAdminName(cleanerName)) return;
+  const cleanerName = cleanDisplayName(customer.cleanerName || customer.cleaner || "");
+  if(!pay || !cleanerName || isLaithName(cleanerName)) return;
   const key = stableKey(cleanerName) || customer.cleanerId || cleanerName;
   if(!cleaners.has(key)) cleaners.set(key, { id: customer.cleanerId || "", key, name: cleanerName, claimed: 0, completed: 0, earned: 0, repDocId: findRepDocId(cleanerName, customer.cleanerId) });
   const row = cleaners.get(key);
@@ -228,9 +288,9 @@ async function saveCustomerModal(id = ""){
     paid: read("paid"),
     paymentStatus: read("paid"),
     paymentMethod: read("paymentMethod"),
-    repName: read("repName"),
-    cleanerName: read("cleanerName"),
-    cleaner: read("cleanerName"),
+    repName: cleanDisplayName(read("repName")),
+    cleanerName: cleanDisplayName(read("cleanerName")),
+    cleaner: cleanDisplayName(read("cleanerName")),
     cleanerPay: Number(read("cleanerPay") || 0),
     jobDate,
     completedAt: jobDate,
@@ -260,8 +320,8 @@ async function moveCustomerBackToOpenJob(id){
     cleanerName: "",
     cleanerId: "",
     price: Number(customer.price || customer.amount || customer.lifetimeRevenue || 0),
-    payCleanerAmount: 0,
-    cleanerPay: 0,
+    payCleanerAmount: Number(customer.cleanerPay || customer.payCleanerAmount || 0),
+    cleanerPay: Number(customer.cleanerPay || customer.payCleanerAmount || 0),
     status: "open",
     completedAt: "",
     cleanedAt: "",
@@ -289,7 +349,7 @@ async function completeOpenJob(id){
   const job = jobs[id];
   if(!job) return toast("Job not found");
   const t = Date.now();
-  await setDoc(doc(db, "jobs", id), { status: "completed", cleanerId: job.cleanerId || uid, cleanerName: job.cleanerName || job.cleaner || currentName(), cleaner: job.cleaner || job.cleanerName || currentName(), completedAt: t, cleanedAt: t, lastCleanedAt: t, updatedAt: t, updatedBy: currentName() }, { merge: true });
+  await setDoc(doc(db, "jobs", id), { status: "completed", cleanerId: job.cleanerId || uid, cleanerName: cleanDisplayName(job.cleanerName || job.cleaner || currentName()), cleaner: cleanDisplayName(job.cleaner || job.cleanerName || currentName()), completedAt: t, cleanedAt: t, lastCleanedAt: t, updatedAt: t, updatedBy: currentName() }, { merge: true });
   toast("Job completed");
 }
 
@@ -309,9 +369,9 @@ async function moveJobToCustomer(id){
     lifetimeRevenue: Number(job.price || job.amount || job.quote || 0),
     paid: job.paid || job.paymentStatus || "",
     paymentMethod: job.paymentMethod || job.method || "",
-    repName: job.repName || job.rep || "",
-    cleanerName: job.cleanerName || job.cleaner || "",
-    cleaner: job.cleaner || job.cleanerName || "",
+    repName: cleanDisplayName(job.repName || job.rep || ""),
+    cleanerName: cleanDisplayName(job.cleanerName || job.cleaner || ""),
+    cleaner: cleanDisplayName(job.cleaner || job.cleanerName || ""),
     cleanerPay: cleanerPay(job),
     jobDate: t,
     completedAt: t,
@@ -328,18 +388,54 @@ async function moveJobToCustomer(id){
 
 async function deleteCleanerRecord(id, name){
   if(!isAdminish()) return toast("Admin required");
-  if(!id) return toast("No cleaner record to delete");
+  if(!id) return toast("This row comes from job history. Edit that job/customer cleaner field to remove it.");
+  if(isLaithName(name)) return toast("Laith is combined as admin, not a cleaner row.");
   if(!confirm(`Delete ${name} from Team records? Job history stays.`)) return;
   await deleteDoc(doc(db, "reps", id));
   toast("Cleaner record deleted");
 }
 
+async function deleteRepRecord(id, name){
+  if(!isAdminish()) return toast("Admin required");
+  if(!id) return toast("No rep record to delete");
+  if(isLaithName(name)) return toast("Laith is the combined admin account.");
+  if(!confirm(`Delete ${name} from Team records? Job and customer history stays.`)) return;
+  await deleteDoc(doc(db, "reps", id));
+  toast("Rep record deleted");
+}
+
 async function forceStableAdminRole(){
   const name = currentName();
-  if(!isAdminName(name)) return;
-  const id = stableKey(name);
-  if(!id) return;
+  if(!isLaithName(name)) return;
+  localStorage.setItem("allset_rep_name", "Laith");
+  localStorage.setItem("allset_rep_role", "admin");
+  const id = "user-laith";
   await setDoc(doc(db, "reps", id), { id, uid: id, stableId: id, name: "Laith", displayName: "Laith", normalizedName: "laith", role: "admin", updatedAt: Date.now(), updatedBy: "Laith" }, { merge: true }).catch(() => {});
+}
+
+function exportCustomersIrsCsv(){
+  const headers = ["Job Date", "Customer", "Address", "Service", "Price", "Paid", "Payment Method", "Rep", "Cleaner"];
+  const rows = Object.values(customers).sort((a,b) => dateVal(a.jobDate || a.completedAt || a.lastCleanedAt || a.createdAt) - dateVal(b.jobDate || b.completedAt || b.lastCleanedAt || b.createdAt)).map(customer => [
+    readableDate(customer.jobDate || customer.completedAt || customer.lastCleanedAt || customer.createdAt),
+    customer.name || customer.customer || "",
+    customer.address || "",
+    customer.service || customer.title || "Window Cleaning",
+    Number(customer.price || customer.amount || customer.lifetimeRevenue || 0),
+    customer.paid || customer.paymentStatus || customer.status || "",
+    customer.paymentMethod || customer.method || "",
+    customer.repName || customer.rep || "",
+    customer.cleanerName || customer.cleaner || ""
+  ]);
+  const csv = [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `allset-customers-irs-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  toast("IRS CSV downloaded");
 }
 
 function showPage(page){
@@ -356,13 +452,14 @@ function findRepDocId(name, id){
   const match = Object.entries(reps).find(([rid, rep]) => rid === key || sameName(rep.name || rep.displayName, name));
   return match?.[0] || "";
 }
-function currentName(){ return localStorage.getItem("allset_rep_name") || $("nicknameInput")?.value || "Team"; }
+function currentName(){ return cleanDisplayName(localStorage.getItem("allset_rep_name") || $("nicknameInput")?.value || "Team"); }
 function currentRole(){ return localStorage.getItem("allset_rep_role") || $("roleSelect")?.value || "rep"; }
-function isAdminish(){ return currentRole() === "admin" || isAdminName(currentName()) || sessionStorage.getItem("allset_admin_unlocked") === "1"; }
-function isAdminName(name){ return normalizeName(name) === "laith"; }
+function isAdminish(){ return currentRole() === "admin" || isLaithName(currentName()) || sessionStorage.getItem("allset_admin_unlocked") === "1"; }
+function isLaithName(name){ return normalizeName(name).startsWith("laith"); }
 function normalizeName(name){ return String(name || "").trim().replace(/\s+/g, " ").toLowerCase(); }
-function sameName(a,b){ return normalizeName(a) && normalizeName(a) === normalizeName(b); }
-function stableKey(name){ const slug = normalizeName(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); return slug ? `user-${slug}` : ""; }
+function cleanDisplayName(name){ return isLaithName(name) ? "Laith" : String(name || "").trim(); }
+function sameName(a,b){ return normalizeName(a) && stableKey(a) === stableKey(b); }
+function stableKey(name){ const normal = normalizeName(name); if(!normal) return ""; if(normal.startsWith("laith")) return "user-laith"; const slug = normal.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); return slug ? `user-${slug}` : ""; }
 function cleanerPay(job){ return Number(job.payCleanerAmount ?? job.cleanerPay ?? job.cleanerAmount ?? job.payCleaner ?? job.cleanerPayout ?? 0) || 0; }
 function jobStatus(status){ const s = String(status || "open").toLowerCase().replace(/\s+/g, "_").replace("-", "_"); return s === "scheduled" ? "open" : s; }
 function labelStatus(status){ return jobStatus(status).replaceAll("_", " ").replace(/^./, ch => ch.toUpperCase()); }
@@ -370,12 +467,13 @@ function dateVal(value){ if(!value) return 0; if(typeof value === "number") retu
 function readableDate(value){ const t = dateVal(value); return t ? new Date(t).toLocaleString([], { month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit" }) : ""; }
 function dateInputValue(value){ if(!value) return ""; if(typeof value === "number") return new Date(value).toISOString().slice(0,10); if(value.seconds) return new Date(value.seconds * 1000).toISOString().slice(0,10); const match = String(value).match(/\d{4}-\d{2}-\d{2}/); return match ? match[0] : ""; }
 function sel(current, value){ return String(current || "") === value ? ' selected' : ""; }
+function csvCell(value){ return `"${String(value ?? "").replaceAll('"', '""')}"`; }
 function closeModal(){ $("modalBackdrop")?.classList.add("hidden"); if($("modalCard")) $("modalCard").innerHTML = ""; }
 function toast(message){ const el = $("toast"); if(!el) return; el.textContent = message; el.classList.remove("hidden"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add("hidden"), 1800); }
 function injectCss(){
   if($("repPortalUiHotfix2Css")) return;
   const style = document.createElement("style");
   style.id = "repPortalUiHotfix2Css";
-  style.textContent = `.tableActions{display:flex;gap:7px;flex-wrap:wrap}.formGrid textarea[data-customer-field="notes"]{min-height:82px}`;
+  style.textContent = `.tableActions{display:flex;gap:7px;flex-wrap:wrap}.tableToolbar{display:flex;justify-content:flex-end;margin:0 0 10px}.formGrid textarea[data-customer-field="notes"]{min-height:82px}`;
   document.head.appendChild(style);
 }
