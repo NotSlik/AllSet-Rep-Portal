@@ -1,6 +1,6 @@
 console.log("✅ ALLSET LIVE CRM LOADED");
 
-import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getDatabase, ref, set, onValue, onDisconnect, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -16,7 +16,7 @@ const firebaseConfig = {
   databaseURL: "https://allsetrepportal-default-rtdb.firebaseio.com"
 };
 
-const fbApp = getApps()[0] || initializeApp(firebaseConfig);
+const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 const rtdb = getDatabase(fbApp);
@@ -58,11 +58,7 @@ async function boot(){
   }
   roleSelect.value = savedRole;
   lockApp(true);
-  waitForAuthRestore().then(() => {
-    if(!auth.currentUser){
-      signInAnonymously(auth).catch(err => console.warn("Firebase auth:", err.message));
-    }
-  });
+  signInAnonymously(auth).catch(err => console.warn("Firebase auth:", err.message));
   onAuthStateChanged(auth, async user => {
     if(user){
       currentUid = user.uid;
@@ -71,7 +67,7 @@ async function boot(){
         currentRole = savedName.toLowerCase() === "laith" ? "admin" : savedRole;
         completeLogin();
         try{
-          await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name:currentName,role:currentRole,...currentAuthFields(),updatedAt:serverTimestamp()},{merge:true});
+          await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name:currentName,role:currentRole,updatedAt:serverTimestamp()},{merge:true});
           setupPresence();
           subscribeAll();
         }catch(e){ console.warn("Firebase sync failed (non-blocking):", e.message); }
@@ -162,35 +158,14 @@ async function handleEnter(){
   completeLogin();
   
   try{
-    if(!currentUid && auth.currentUser){
-      currentUid = auth.currentUser.uid;
-    }
     if(!currentUid){
       const cred = await signInAnonymously(auth);
       currentUid = cred.user.uid;
     }
-    await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name,role:currentRole,...currentAuthFields(),updatedAt:serverTimestamp()},{merge:true});
+    await setDoc(doc(db,"reps",currentUid),{uid:currentUid,name,role:currentRole,updatedAt:serverTimestamp()},{merge:true});
     setupPresence();
     subscribeAll();
   }catch(e){ console.warn("Firebase sync failed (non-blocking):", e.message); }
-}
-
-function currentAuthFields(){
-  const user = auth.currentUser;
-  if(!user) return {};
-  return {
-    email: user.email || "",
-    authProvider: user.isAnonymous ? "anonymous" : (user.providerData?.[0]?.providerId || "password"),
-    isAnonymous: !!user.isAnonymous
-  };
-}
-
-async function waitForAuthRestore(){
-  if(typeof auth.authStateReady === "function"){
-    await auth.authStateReady().catch(() => {});
-    return;
-  }
-  await new Promise(resolve => setTimeout(resolve, 350));
 }
 
 function completeLogin(){
