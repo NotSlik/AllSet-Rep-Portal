@@ -86,7 +86,7 @@ function renderCustomers(force){
   if(!table) return;
   const data = Object.values(customers).sort((a,b) => dateVal(b.jobDate || b.completedAt || b.lastCleanedAt || b.createdAt) - dateVal(a.jobDate || a.completedAt || a.lastCleanedAt || a.createdAt));
   const signature = JSON.stringify(data.map(c => [c.id, c.jobId, c.invoiceNumber, c.name, c.phone, c.address, c.service, c.price, c.lifetimeRevenue, c.paid, c.paymentMethod, c.repName, c.repPay, c.cleanerName, cleanerPay(c), c.updatedAt, customersOpen]));
-  if(!force && signature === lastCustomerSignature) return;
+  if(!force && signature === lastCustomerSignature && table.querySelector(".customerTableShell")) return;
   lastCustomerSignature = signature;
   const scroll = table.querySelector(".customerDataScroll")?.scrollLeft || 0;
   const drawerRows = data.map(c => `<div class="bookkeepingItem"><strong>${esc(c.name || c.customer || "Customer")}</strong><span>Job ID: ${esc(c.jobId || c.businessJobId || "-")}</span><span>Invoice: ${esc(c.invoiceNumber || "-")}</span></div>`).join("");
@@ -112,7 +112,7 @@ function renderBoard(){
   const admin = isAdminish();
   const rows = [...cleaners.values()].sort((a,b) => b.earned - a.earned || b.completed - a.completed).map(row => `<tr><td><strong>${esc(row.name)}</strong></td><td>${row.claimed}</td><td>${row.completed}</td><td>${money(row.earned)}</td>${admin ? `<td>${row.repDocId ? `<button class="dangerBtn smallBtn deleteBoardCleanerBtn" data-id="${esc(row.repDocId)}" data-name="${esc(row.name)}">Delete</button>` : ""}</td>` : ""}</tr>`);
   const html = rows.length ? `<table class="dataTable"><thead><tr><th>Cleaner</th><th>Jobs Claimed</th><th>Jobs Completed</th><th>Amount Earned</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No cleaner board data yet.</div>`;
-  if(html !== lastBoardSignature){ table.innerHTML = html; lastBoardSignature = html; }
+  if(table.innerHTML !== html){ table.innerHTML = html; lastBoardSignature = html; }
 }
 
 function renderLeaderboard(){
@@ -146,7 +146,7 @@ function renderLeaderboard(){
   const admin = isAdminish();
   const rows = [...rowsByKey.values()].sort((a,b) => b.revenue - a.revenue).map(row => `<tr><td><strong>${esc(row.name)}</strong></td><td>${money(row.revenue)}</td><td>${row.sold}</td><td>${row.converted}</td><td>${row.total ? Math.round(row.converted / row.total * 100) : 0}%</td>${admin ? `<td>${reps[row.id] ? `<button class="dangerBtn smallBtn deleteRepBtn" data-id="${esc(row.id)}" data-name="${esc(row.name)}">Delete</button>` : ""}</td>` : ""}</tr>`);
   const html = rows.length ? `<table class="dataTable"><thead><tr><th>Rep</th><th>Revenue</th><th>Sold Jobs</th><th>Leads Converted</th><th>Close Rate</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No leaderboard data yet.</div>`;
-  if(html !== lastLeaderboardSignature){ table.innerHTML = html; lastLeaderboardSignature = html; }
+  if(table.innerHTML !== html){ table.innerHTML = html; lastLeaderboardSignature = html; }
 }
 
 function renderTeam(){
@@ -158,7 +158,7 @@ function renderTeam(){
     return `<tr><td><strong>${esc(rep.name || "Rep")}</strong><br><span class="muted">${esc(rep.role || "rep")}</span></td><td>${sold}</td><td>${money(revenue)}</td><td>${money(rep.commissionOwed || 0)}</td><td>${esc(rep.assignedNeighborhoodId || "-")}</td><td><button class="dangerBtn smallBtn" onclick="window.removeTeamMember?.('${esc(id)}','${esc(rep.name || "")}')">Remove</button></td></tr>`;
   });
   const html = rows.length ? `<table class="dataTable"><thead><tr><th>Member</th><th>Sales</th><th>Revenue</th><th>Commission</th><th>Assigned</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No team members online yet.</div>`;
-  if(html !== lastTeamSignature){ table.innerHTML = html; lastTeamSignature = html; }
+  if(table.innerHTML !== html){ table.innerHTML = html; lastTeamSignature = html; }
 }
 
 function renderDashboardTotals(){
