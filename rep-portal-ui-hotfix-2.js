@@ -26,6 +26,7 @@ let customers = {};
 let reps = {};
 let rendering = false;
 let subscribed = false;
+let backfillBusy = false;
 
 bootUiHotfix2();
 
@@ -38,14 +39,14 @@ function bootUiHotfix2(){
     renderAll();
   });
   document.addEventListener("click", captureClicks, true);
-  setInterval(renderAll, 1300);
+  setInterval(() => { enhanceBookkeepingJobModal(); renderAll(); }, 1300);
 }
 
 function subscribe(){
   if(subscribed) return;
   subscribed = true;
-  onSnapshot(collection(db, "jobs"), snap => { jobs = snapObj(snap); renderAll(); });
-  onSnapshot(collection(db, "customers"), snap => { customers = snapObj(snap); renderAll(); });
+  onSnapshot(collection(db, "jobs"), snap => { jobs = snapObj(snap); ensureBookkeepingIds(); renderAll(); });
+  onSnapshot(collection(db, "customers"), snap => { customers = snapObj(snap); ensureBookkeepingIds(); renderAll(); });
   onSnapshot(collection(db, "reps"), snap => { reps = snapObj(snap); renderAll(); });
 }
 
@@ -57,6 +58,10 @@ function snapObj(snap){
 
 function captureClicks(event){
   const target = event.target;
+  if(target.closest?.('[data-open="jobModal"]') || String(target.getAttribute?.("onclick") || "").includes("crmEdit('job'")){
+    setTimeout(enhanceBookkeepingJobModal, 0);
+    setTimeout(enhanceBookkeepingJobModal, 160);
+  }
   if(target.closest?.('[data-open="customerModal"]')){
     event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
     openCustomerModal(); return;
@@ -113,9 +118,9 @@ function renderAll(){
 function renderCustomers(){
   const table = $("customersTable");
   if(!table) return;
-  const rows = Object.values(customers).sort((a,b) => dateVal(b.jobDate || b.completedAt || b.lastCleanedAt || b.createdAt) - dateVal(a.jobDate || a.completedAt || a.lastCleanedAt || a.createdAt)).map(customer => `<tr><td>${esc(readableDate(customer.jobDate || customer.completedAt || customer.lastCleanedAt || customer.createdAt) || "-")}</td><td><strong>${esc(customer.name || customer.customer || "Customer")}</strong><br><span class="muted">${esc(customer.phone || "")}</span></td><td>${esc(customer.address || "-")}</td><td>${esc(customer.service || customer.title || "Window Cleaning")}</td><td>${money(customer.price || customer.amount || customer.lifetimeRevenue || 0)}</td><td>${esc(customer.paid || customer.paymentStatus || customer.status || "-")}</td><td>${esc(customer.paymentMethod || customer.method || "-")}</td><td>${esc(customer.repName || customer.rep || "-")}</td><td>${esc(customer.cleanerName || customer.cleaner || "-")}</td><td><div class="tableActions"><button class="ghostBtn smallBtn customerEditFullBtn" data-id="${esc(customer.id)}">Edit</button><button class="actionBtn smallBtn mbtJobStrictBtn" data-id="${esc(customer.id)}">MBT Job</button></div></td></tr>`);
+  const rows = Object.values(customers).sort((a,b) => dateVal(b.jobDate || b.completedAt || b.lastCleanedAt || b.createdAt) - dateVal(a.jobDate || a.completedAt || a.lastCleanedAt || a.createdAt)).map(customer => `<tr><td>${esc(customer.jobId || customer.businessJobId || "-")}</td><td>${esc(customer.invoiceNumber || "-")}</td><td>${esc(readableDate(customer.jobDate || customer.completedAt || customer.lastCleanedAt || customer.createdAt) || "-")}</td><td><strong>${esc(customer.name || customer.customer || "Customer")}</strong><br><span class="muted">${esc(customer.phone || "")}</span></td><td>${esc(customer.address || "-")}</td><td>${esc(customer.service || customer.title || "Window Cleaning")}</td><td>${money(customer.price || customer.amount || customer.lifetimeRevenue || 0)}</td><td>${esc(customer.paid || customer.paymentStatus || customer.status || "-")}</td><td>${esc(customer.paymentMethod || customer.method || "-")}</td><td>${esc(customer.repName || customer.rep || "-")}</td><td>${money(repPay(customer))}</td><td>${esc(customer.cleanerName || customer.cleaner || "-")}</td><td>${money(cleanerPay(customer))}</td><td>${money(totalLaborCost(customer))}</td><td><div class="tableActions"><button class="ghostBtn smallBtn customerEditFullBtn" data-id="${esc(customer.id)}">Edit</button><button class="actionBtn smallBtn mbtJobStrictBtn" data-id="${esc(customer.id)}">MBT Job</button></div></td></tr>`);
   const toolbar = `<div class="tableToolbar"><button class="ghostBtn smallBtn exportCustomersIrsFullBtn" type="button">Export IRS CSV</button></div>`;
-  table.innerHTML = toolbar + (rows.length ? `<table class="dataTable"><thead><tr><th>Job Date</th><th>Customer</th><th>Address</th><th>Service</th><th>Price</th><th>Paid</th><th>Payment Method</th><th>Rep</th><th>Cleaner</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No customers yet.</div>`);
+  table.innerHTML = toolbar + (rows.length ? `<table class="dataTable"><thead><tr><th>Job ID</th><th>Invoice Number</th><th>Job Date</th><th>Customer</th><th>Address</th><th>Service</th><th>Price</th><th>Paid</th><th>Payment Method</th><th>Rep</th><th>Rep Pay</th><th>Cleaner</th><th>Cleaner Pay</th><th>Total Labor Cost</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No customers yet.</div>`);
 }
 
 function renderJobs(){
@@ -132,9 +137,9 @@ function renderJobs(){
     const completedButton = status !== "completed" && (role !== "cleaner" || mine) ? `<button class="actionBtn smallBtn completeOpenJobBtn" data-id="${esc(job.id)}">Completed</button>` : "";
     const editButton = role !== "cleaner" ? `<button class="ghostBtn smallBtn" onclick="window.crmEdit?.('job','${esc(job.id)}')">Edit</button>` : "";
     const customerButton = role !== "cleaner" ? `<button class="ghostBtn smallBtn moveJobCustomerStrictBtn" data-id="${esc(job.id)}">Customer</button>` : "";
-    return `<tr><td><strong>${esc(job.customer || job.title || "Job")}</strong><br><span class="muted">${esc(job.address || "")}</span></td><td>${esc(job.phone || "-")}</td><td>${esc(readableDate(job.scheduledAt) || "-")}</td><td>${esc(job.cleanerName || job.cleaner || "-")}</td><td>${money(job.price || job.amount || job.quote || 0)}</td><td>${money(cleanerPay(job))}</td><td>${esc(readableDate(job.cleanedAt || job.completedAt || job.lastCleanedAt) || "-")}</td><td><span class="status ${esc(status)}">${esc(labelStatus(status))}</span></td><td><div class="tableActions">${claimButton}${completedButton}${editButton}${customerButton}</div></td></tr>`;
+    return `<tr><td><strong>${esc(job.customer || job.title || "Job")}</strong><br><span class="muted">${esc(job.jobId || job.businessJobId || "")}${job.invoiceNumber ? ` / ${esc(job.invoiceNumber)}` : ""}</span></td><td>${esc(job.phone || "-")}</td><td>${esc(readableDate(job.scheduledAt) || "-")}</td><td>${esc(job.cleanerName || job.cleaner || "-")}</td><td>${money(job.price || job.amount || job.quote || 0)}</td><td>${money(repPay(job))}</td><td>${money(cleanerPay(job))}</td><td>${money(totalLaborCost(job))}</td><td>${esc(readableDate(job.cleanedAt || job.completedAt || job.lastCleanedAt) || "-")}</td><td><span class="status ${esc(status)}">${esc(labelStatus(status))}</span></td><td><div class="tableActions">${claimButton}${completedButton}${editButton}${customerButton}</div></td></tr>`;
   });
-  table.innerHTML = rows.length ? `<table class="dataTable"><thead><tr><th>Job</th><th>Phone</th><th>Scheduled</th><th>Cleaner</th><th>Price</th><th>Commission Amount</th><th>Cleaned Date</th><th>Status</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No jobs scheduled yet.</div>`;
+  table.innerHTML = rows.length ? `<table class="dataTable"><thead><tr><th>Job</th><th>Phone</th><th>Scheduled</th><th>Cleaner</th><th>Price</th><th>Rep Pay</th><th>Cleaner Pay</th><th>Total Labor Cost</th><th>Cleaned Date</th><th>Status</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No jobs scheduled yet.</div>`;
 }
 
 function renderBoard(){
@@ -184,7 +189,7 @@ function openCustomerModal(id = ""){
   const card = $("modalCard");
   if(!backdrop || !card) return;
   backdrop.classList.remove("hidden");
-  card.innerHTML = `<div class="modalTop"><div><h2>${id ? "Edit" : "Add"} Customer</h2><p class="muted">IRS-ready customer and completed job details.</p></div><button class="ghostBtn" id="closeCustomerFullModalBtn" type="button">Close</button></div><div class="formGrid"><label>Job Date<input data-customer-field="jobDate" type="date" value="${esc(dateInputValue(customer.jobDate || customer.completedAt || customer.lastCleanedAt || customer.createdAt))}" /></label><label>Customer<input data-customer-field="name" value="${esc(customer.name || customer.customer || "")}" /></label><label>Phone<input data-customer-field="phone" value="${esc(customer.phone || "")}" /></label><label>Address<input data-customer-field="address" value="${esc(customer.address || "")}" /></label><label>Service<input data-customer-field="service" value="${esc(customer.service || customer.title || "Window Cleaning")}" /></label><label>Price<input data-customer-field="price" type="number" min="0" step="1" value="${esc(customer.price || customer.amount || customer.lifetimeRevenue || "")}" /></label><label>Paid<select data-customer-field="paid"><option value=""${sel(customer.paid || customer.paymentStatus || customer.status, "")}>Select</option><option value="paid"${sel(customer.paid || customer.paymentStatus || customer.status, "paid")}>Paid</option><option value="unpaid"${sel(customer.paid || customer.paymentStatus || customer.status, "unpaid")}>Unpaid</option><option value="partial"${sel(customer.paid || customer.paymentStatus || customer.status, "partial")}>Partial</option></select></label><label>Payment Method<input data-customer-field="paymentMethod" value="${esc(customer.paymentMethod || customer.method || "")}" placeholder="Cash App, Venmo, Zelle, Cash" /></label><label>Rep<input data-customer-field="repName" value="${esc(customer.repName || customer.rep || "")}" /></label><label>Cleaner<input data-customer-field="cleanerName" value="${esc(customer.cleanerName || customer.cleaner || "")}" /></label><label>Cleaner Commission<input data-customer-field="cleanerPay" type="number" min="0" step="1" value="${esc(customer.cleanerPay || customer.payCleanerAmount || "")}" /></label><label>Notes<textarea data-customer-field="notes">${esc(customer.notes || "")}</textarea></label></div><div class="modalActions"><button class="actionBtn" id="saveCustomerFullBtn" type="button">Save</button></div>`;
+  card.innerHTML = `<div class="modalTop"><div><h2>${id ? "Edit" : "Add"} Customer</h2><p class="muted">IRS-ready customer and completed job details.</p></div><button class="ghostBtn" id="closeCustomerFullModalBtn" type="button">Close</button></div><div class="formGrid"><label>Job ID<input data-customer-field="jobId" value="${esc(customer.jobId || customer.businessJobId || nextBusinessId("AS", customer))}" readonly /></label><label>Invoice Number<input data-customer-field="invoiceNumber" value="${esc(customer.invoiceNumber || nextBusinessId("INV", customer))}" /></label><label>Job Date<input data-customer-field="jobDate" type="date" value="${esc(dateInputValue(customer.jobDate || customer.completedAt || customer.lastCleanedAt || customer.createdAt))}" /></label><label>Customer<input data-customer-field="name" value="${esc(customer.name || customer.customer || "")}" /></label><label>Phone<input data-customer-field="phone" value="${esc(customer.phone || "")}" /></label><label>Address<input data-customer-field="address" value="${esc(customer.address || "")}" /></label><label>Service<input data-customer-field="service" value="${esc(customer.service || customer.title || "Window Cleaning")}" /></label><label>Price<input data-customer-field="price" type="number" min="0" step="1" value="${esc(customer.price || customer.amount || customer.lifetimeRevenue || "")}" /></label><label>Paid<select data-customer-field="paid"><option value=""${sel(customer.paid || customer.paymentStatus || customer.status, "")}>Select</option><option value="paid"${sel(customer.paid || customer.paymentStatus || customer.status, "paid")}>Paid</option><option value="unpaid"${sel(customer.paid || customer.paymentStatus || customer.status, "unpaid")}>Unpaid</option><option value="partial"${sel(customer.paid || customer.paymentStatus || customer.status, "partial")}>Partial</option></select></label><label>Payment Method<input data-customer-field="paymentMethod" value="${esc(customer.paymentMethod || customer.method || "")}" placeholder="Cash App, Venmo, Zelle, Cash" /></label><label>Rep<input data-customer-field="repName" value="${esc(customer.repName || customer.rep || "")}" /></label><label>Rep Pay<input data-customer-field="repPay" type="number" min="0" step="1" value="${esc(repPay(customer) || "")}" /></label><label>Cleaner<input data-customer-field="cleanerName" value="${esc(customer.cleanerName || customer.cleaner || "")}" /></label><label>Cleaner Pay<input data-customer-field="cleanerPay" type="number" min="0" step="1" value="${esc(cleanerPay(customer) || "")}" /></label><label>Notes<textarea data-customer-field="notes">${esc(customer.notes || "")}</textarea></label></div><div class="modalActions"><button class="actionBtn" id="saveCustomerFullBtn" type="button">Save</button></div>`;
   $("closeCustomerFullModalBtn").onclick = closeModal;
   $("saveCustomerFullBtn").onclick = () => saveCustomerModal(id);
 }
@@ -193,12 +198,17 @@ async function saveCustomerModal(id = ""){
   const card = $("modalCard");
   const read = field => card?.querySelector(`[data-customer-field="${field}"]`)?.value?.trim() || "";
   const customerId = id || `cust-${Date.now()}`;
+  const existing = id ? customers[id] || {} : {};
   const jobDate = read("jobDate") ? new Date(`${read("jobDate")}T12:00`).getTime() : Date.now();
+  const jobId = existing.jobId || existing.businessJobId || read("jobId") || nextBusinessId("AS", { id: customerId, createdAt: jobDate });
+  const invoiceNumber = existing.invoiceNumber || read("invoiceNumber") || nextBusinessId("INV", { id: customerId, createdAt: jobDate });
   await setDoc(doc(db, "customers", customerId), {
-    id: customerId, name: read("name"), customer: read("name"), phone: read("phone"), address: read("address"),
+    id: customerId, jobId, businessJobId: jobId, invoiceNumber,
+    name: read("name"), customer: read("name"), phone: read("phone"), address: read("address"),
     service: read("service") || "Window Cleaning", price: Number(read("price") || 0), lifetimeRevenue: Number(read("price") || 0),
     paid: read("paid"), paymentStatus: read("paid"), paymentMethod: read("paymentMethod"), repName: read("repName"),
-    cleanerName: read("cleanerName"), cleaner: read("cleanerName"), cleanerPay: Number(read("cleanerPay") || 0),
+    repPay: Number(read("repPay") || 0), cleanerName: read("cleanerName"), cleaner: read("cleanerName"), cleanerPay: Number(read("cleanerPay") || 0), payCleanerAmount: Number(read("cleanerPay") || 0),
+    totalLaborCost: Number(read("repPay") || 0) + Number(read("cleanerPay") || 0),
     jobDate, completedAt: jobDate, lastCleanedAt: jobDate, notes: read("notes"), updatedAt: Date.now(), updatedBy: currentName(),
     ...(!id ? { createdAt: Date.now(), createdBy: currentName() } : {})
   }, { merge: true });
@@ -210,11 +220,13 @@ async function moveCustomerBackToOpenJob(id){
   const customer = customers[id];
   if(!customer) return toast("Customer not found");
   const jobId = `jobs-${Date.now()}`;
+  const businessJobId = customer.jobId || customer.businessJobId || nextBusinessId("AS", customer);
+  const invoiceNumber = customer.invoiceNumber || nextBusinessId("INV", customer);
   await setDoc(doc(db, "jobs", jobId), {
-    id: jobId, sourceCustomerId: id, title: customer.service || customer.title || "Window Cleaning",
+    id: jobId, jobId: businessJobId, businessJobId, invoiceNumber, sourceCustomerId: id, title: customer.service || customer.title || "Window Cleaning",
     customer: customer.name || customer.customer || "", phone: customer.phone || "", address: customer.address || "", scheduledAt: "",
     cleaner: "", cleanerName: "", cleanerId: "", price: Number(customer.price || customer.amount || customer.lifetimeRevenue || 0),
-    payCleanerAmount: Number(customer.cleanerPay || customer.payCleanerAmount || 0), cleanerPay: Number(customer.cleanerPay || customer.payCleanerAmount || 0),
+    repPay: Number(customer.repPay || customer.repCommission || 0), payCleanerAmount: Number(customer.cleanerPay || customer.payCleanerAmount || 0), cleanerPay: Number(customer.cleanerPay || customer.payCleanerAmount || 0),
     status: "open", completedAt: "", cleanedAt: "", lastCleanedAt: "", notes: customer.notes || "", repName: currentName(), repId: uid,
     createdAt: Date.now(), createdBy: currentName(), movedBackFromCustomerAt: Date.now()
   }, { merge: true });
@@ -234,7 +246,9 @@ async function completeOpenJob(id){
   const job = jobs[id];
   if(!job) return toast("Job not found");
   const t = Date.now();
-  await setDoc(doc(db, "jobs", id), { status: "completed", cleanerId: job.cleanerId || uid, cleanerName: job.cleanerName || job.cleaner || currentName(), cleaner: job.cleaner || job.cleanerName || currentName(), completedAt: t, cleanedAt: t, lastCleanedAt: t, updatedAt: t, updatedBy: currentName() }, { merge: true });
+  const jobId = job.jobId || job.businessJobId || nextBusinessId("AS", job);
+  const invoiceNumber = job.invoiceNumber || nextBusinessId("INV", job);
+  await setDoc(doc(db, "jobs", id), { jobId, businessJobId: jobId, invoiceNumber, status: "completed", cleanerId: job.cleanerId || uid, cleanerName: job.cleanerName || job.cleaner || currentName(), cleaner: job.cleaner || job.cleanerName || currentName(), completedAt: t, cleanedAt: t, lastCleanedAt: t, totalLaborCost: totalLaborCost(job), updatedAt: t, updatedBy: currentName() }, { merge: true });
   toast("Job completed");
 }
 
@@ -243,11 +257,13 @@ async function moveJobToCustomer(id){
   if(!job) return toast("Job not found");
   const t = job.cleanedAt || job.completedAt || Date.now();
   const customerId = `cust-${Date.now()}`;
+  const jobId = job.jobId || job.businessJobId || nextBusinessId("AS", job);
+  const invoiceNumber = job.invoiceNumber || nextBusinessId("INV", job);
   await setDoc(doc(db, "customers", customerId), {
-    id: customerId, name: job.customer || job.name || job.title || "Customer", customer: job.customer || job.name || "", phone: job.phone || "", address: job.address || "",
+    id: customerId, jobId, businessJobId: jobId, invoiceNumber, name: job.customer || job.name || job.title || "Customer", customer: job.customer || job.name || "", phone: job.phone || "", address: job.address || "",
     service: job.title || job.service || "Window Cleaning", price: Number(job.price || job.amount || job.quote || 0), lifetimeRevenue: Number(job.price || job.amount || job.quote || 0),
-    paid: job.paid || job.paymentStatus || "", paymentMethod: job.paymentMethod || job.method || "", repName: job.repName || job.rep || "", cleanerName: job.cleanerName || job.cleaner || "",
-    cleaner: job.cleaner || job.cleanerName || "", cleanerPay: cleanerPay(job), jobDate: t, completedAt: t, lastCleanedAt: t, notes: job.notes || "", sourceJobId: id,
+    paid: job.paid || job.paymentStatus || "", paymentMethod: job.paymentMethod || job.method || "", repName: job.repName || job.rep || "", repPay: repPay(job), cleanerName: job.cleanerName || job.cleaner || "",
+    cleaner: job.cleaner || job.cleanerName || "", cleanerPay: cleanerPay(job), payCleanerAmount: cleanerPay(job), totalLaborCost: totalLaborCost(job), jobDate: t, completedAt: t, lastCleanedAt: t, notes: job.notes || "", sourceJobId: id,
     createdAt: Date.now(), createdBy: currentName()
   }, { merge: true });
   await deleteDoc(doc(db, "jobs", id));
@@ -263,9 +279,84 @@ async function deleteCleanerRecord(id, name){
   toast("Cleaner record deleted");
 }
 
+async function ensureBookkeepingIds(){
+  if(backfillBusy) return;
+  backfillBusy = true;
+  try{
+    for(const job of Object.values(jobs)){
+      const update = missingBookkeepingUpdate(job);
+      if(Object.keys(update).length) await setDoc(doc(db, "jobs", job.id), update, { merge: true });
+    }
+    for(const customer of Object.values(customers)){
+      const update = missingBookkeepingUpdate(customer);
+      if(Object.keys(update).length) await setDoc(doc(db, "customers", customer.id), update, { merge: true });
+    }
+  } finally {
+    backfillBusy = false;
+  }
+}
+
+function missingBookkeepingUpdate(record){
+  const update = {};
+  const jobId = record.jobId || record.businessJobId;
+  if(!jobId){
+    update.jobId = nextBusinessId("AS", record);
+    update.businessJobId = update.jobId;
+  } else if(!record.businessJobId){
+    update.businessJobId = jobId;
+  }
+  if(!record.invoiceNumber) update.invoiceNumber = nextBusinessId("INV", record);
+  const labor = totalLaborCost(record);
+  if(record.totalLaborCost == null && labor) update.totalLaborCost = labor;
+  return update;
+}
+
+function enhanceBookkeepingJobModal(){
+  const card = $("modalCard");
+  if(!card || card.querySelector('[data-field="repPay"]')) return;
+  const title = card.querySelector("h2")?.textContent || "";
+  const hasJob = card.querySelector('[data-field="price"]') && card.querySelector('[data-field="cleaner"]');
+  if(!/job/i.test(title) && !hasJob) return;
+  const grid = card.querySelector(".formGrid");
+  if(!grid) return;
+  const id = modalJobIdFromTitle() || "";
+  const current = id ? jobs[id] || {} : {};
+  const price = grid.querySelector('[data-field="price"]')?.closest("label");
+  const rep = document.createElement("label");
+  rep.innerHTML = `Rep Pay<input data-field="repPay" type="number" min="0" step="1" value="${esc(repPay(current) || "")}" placeholder="ex: 40" />`;
+  const invoice = document.createElement("label");
+  invoice.innerHTML = `Invoice Number<input data-field="invoiceNumber" value="${esc(current.invoiceNumber || nextBusinessId("INV", current))}" />`;
+  const business = document.createElement("label");
+  business.innerHTML = `Job ID<input data-field="jobId" value="${esc(current.jobId || current.businessJobId || nextBusinessId("AS", current))}" readonly />`;
+  price?.after ? price.after(business, invoice, rep) : grid.append(business, invoice, rep);
+}
+
+function modalJobIdFromTitle(){
+  const onclick = [...document.querySelectorAll('.ghostBtn[onclick*="crmEdit"]')].find(btn => btn.matches(":focus"))?.getAttribute("onclick") || "";
+  const match = onclick.match(/crmEdit\?\.\('job','([^']+)'\)/);
+  return match?.[1] || "";
+}
+
 function exportCustomersIrsCsv(){
-  const headers = ["Job Date", "Customer", "Address", "Service", "Price", "Paid", "Payment Method", "Rep", "Cleaner"];
-  const rows = Object.values(customers).sort((a,b) => dateVal(a.jobDate || a.completedAt || a.lastCleanedAt || a.createdAt) - dateVal(b.jobDate || b.completedAt || b.lastCleanedAt || b.createdAt)).map(customer => [readableDate(customer.jobDate || customer.completedAt || customer.lastCleanedAt || customer.createdAt), customer.name || customer.customer || "", customer.address || "", customer.service || customer.title || "Window Cleaning", Number(customer.price || customer.amount || customer.lifetimeRevenue || 0), customer.paid || customer.paymentStatus || customer.status || "", customer.paymentMethod || customer.method || "", customer.repName || customer.rep || "", customer.cleanerName || customer.cleaner || ""]);
+  const headers = ["Job ID", "Invoice Number", "Job Date", "Customer", "Phone", "Address", "Service", "Price", "Paid", "Payment Method", "Rep", "Rep Pay", "Cleaner", "Cleaner Pay", "Total Labor Cost", "Notes"];
+  const rows = Object.values(customers).sort((a,b) => dateVal(a.jobDate || a.completedAt || a.lastCleanedAt || a.createdAt) - dateVal(b.jobDate || b.completedAt || b.lastCleanedAt || b.createdAt)).map(customer => [
+    customer.jobId || customer.businessJobId || nextBusinessId("AS", customer),
+    customer.invoiceNumber || nextBusinessId("INV", customer),
+    readableDate(customer.jobDate || customer.completedAt || customer.lastCleanedAt || customer.createdAt),
+    customer.name || customer.customer || "",
+    customer.phone || "",
+    customer.address || "",
+    customer.service || customer.title || "Window Cleaning",
+    Number(customer.price || customer.amount || customer.lifetimeRevenue || 0),
+    customer.paid || customer.paymentStatus || customer.status || "",
+    customer.paymentMethod || customer.method || "",
+    customer.repName || customer.rep || "",
+    repPay(customer),
+    customer.cleanerName || customer.cleaner || "",
+    cleanerPay(customer),
+    totalLaborCost(customer),
+    customer.notes || ""
+  ]);
   const csv = [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
@@ -299,7 +390,13 @@ function shouldHideCleanerName(name){ return normalizeName(name) === "laith" || 
 function normalizeName(name){ return String(name || "").trim().replace(/\s+/g, " ").toLowerCase(); }
 function sameName(a,b){ return normalizeName(a) && normalizeName(a) === normalizeName(b); }
 function stableKey(name){ const slug = normalizeName(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); return slug ? `user-${slug}` : ""; }
-function cleanerPay(job){ return Number(job.payCleanerAmount ?? job.cleanerPay ?? job.cleanerAmount ?? job.payCleaner ?? job.cleanerPayout ?? 0) || 0; }
+function num(...values){ for(const value of values){ const n = Number(value); if(Number.isFinite(n) && value !== "") return n; } return 0; }
+function repPay(job){ return num(job.repPay, job.repCommission, job.commissionAmount, job.repCommissionAmount); }
+function cleanerPay(job){ return num(job.payCleanerAmount, job.cleanerPay, job.cleanerAmount, job.payCleaner, job.cleanerPayout); }
+function totalLaborCost(job){ return repPay(job) + cleanerPay(job); }
+function businessYear(record){ const t = dateVal(record.completedAt || record.cleanedAt || record.jobDate || record.createdAt) || Date.now(); return new Date(t).getFullYear(); }
+function nextBusinessId(prefix, record = {}){ const year = businessYear(record); const source = String(record.id || record.sourceJobId || record.createdAt || Date.now()); return `${prefix}-${year}-${stableNumber(source)}`; }
+function stableNumber(source){ let hash = 0; for(let i = 0; i < source.length; i++) hash = (hash * 31 + source.charCodeAt(i)) >>> 0; return String(hash % 1000000).padStart(6, "0"); }
 function jobStatus(status){ const s = String(status || "open").toLowerCase().replace(/\s+/g, "_").replace("-", "_"); return s === "scheduled" ? "open" : s; }
 function labelStatus(status){ return jobStatus(status).replaceAll("_", " ").replace(/^./, ch => ch.toUpperCase()); }
 function dateVal(value){ if(!value) return 0; if(typeof value === "number") return value; if(value.seconds) return value.seconds * 1000; const t = new Date(value).getTime(); return Number.isFinite(t) ? t : 0; }
