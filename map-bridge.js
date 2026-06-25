@@ -16,3 +16,4 @@ import("./rep-portal-fixes.js?v=20260624-crm-workflow-fixes").catch(err => conso
 import("./rep-portal-followup-fixes.js?v=20260624-job-customer-recurring-fixes").catch(err => console.warn("AllSet follow-up fixes failed to load", err));
 import("./rep-portal-followup-hotfix.js?v=20260624-board-history-hotfix").catch(err => console.warn("AllSet board hotfix failed to load", err));
 import("./rep-portal-identity-fix.js?v=20260624-stable-nickname-identity").catch(err => console.warn("AllSet identity fix failed to load", err));
+import("./rep-portal-ui-hotfix-2.js?v=20260624-customer-board-job-reopen").catch(err => console.warn("AllSet UI hotfix failed to load", err));
