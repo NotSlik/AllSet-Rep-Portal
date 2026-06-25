@@ -58,11 +58,11 @@ async function boot(){
   }
   roleSelect.value = savedRole;
   lockApp(true);
-  setTimeout(() => {
+  waitForAuthRestore().then(() => {
     if(!auth.currentUser){
       signInAnonymously(auth).catch(err => console.warn("Firebase auth:", err.message));
     }
-  }, 350);
+  });
   onAuthStateChanged(auth, async user => {
     if(user){
       currentUid = user.uid;
@@ -183,6 +183,14 @@ function currentAuthFields(){
     authProvider: user.isAnonymous ? "anonymous" : (user.providerData?.[0]?.providerId || "password"),
     isAnonymous: !!user.isAnonymous
   };
+}
+
+async function waitForAuthRestore(){
+  if(typeof auth.authStateReady === "function"){
+    await auth.authStateReady().catch(() => {});
+    return;
+  }
+  await new Promise(resolve => setTimeout(resolve, 350));
 }
 
 function completeLogin(){
