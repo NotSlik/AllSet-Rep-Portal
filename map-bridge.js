@@ -19,4 +19,4 @@ import("./rep-portal-identity-fix.js?v=20260624-identity-retired").catch(err => 
 import("./rep-portal-ui-hotfix-2.js?v=20260625-bookkeeping-csv-fields").catch(err => console.warn("AllSet UI hotfix failed to load", err));
 import("./rep-portal-bookkeeping-guard.js?v=20260625-preserve-bookkeeping-ids").catch(err => console.warn("AllSet bookkeeping guard failed to load", err));
 import("./rep-portal-customer-mobile-and-laith-filter.js?v=20260625-mobile-customers-laith-computer").catch(err => console.warn("AllSet customer mobile/filter fix failed to load", err));
-import("./rep-portal-laith-computer-block.js?v=20260625-tight-block-laith-computer-jobs-scroll").catch(err => console.warn("AllSet Laith computer block failed to load", err));
+import("./rep-portal-laith-computer-block.js?v=20260625-hard-block-laith-computer").catch(err => console.warn("AllSet Laith computer block failed to load", err));
