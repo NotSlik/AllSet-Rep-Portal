@@ -23,14 +23,15 @@ let leads = {};
 let jobs = {};
 let subscribed = false;
 let cleanupBusy = false;
+const observed = new WeakSet();
 
 bootLaithComputerBlock();
 
 function bootLaithComputerBlock(){
   signInAnonymously(auth).catch(() => {});
   onAuthStateChanged(auth, () => subscribe());
-  installDomScrubber();
-  setInterval(scrubAll, 450);
+  installScopedStabilizers();
+  setInterval(scrubAll, 300);
 }
 
 function subscribe(){
@@ -61,17 +62,24 @@ async function removeLaithComputerRepDocs(){
   }
 }
 
-function installDomScrubber(){
-  const start = () => {
-    if(!document.body) return setTimeout(start, 50);
-    new MutationObserver(scrubVisibleRows).observe(document.body, { childList: true, subtree: true });
+function installScopedStabilizers(){
+  const tick = () => {
+    ["boardTable", "leaderboardTable", "teamTable", "jobsTable"].forEach(id => observeTable($(id)));
     scrubAll();
+    setTimeout(tick, 1000);
   };
-  start();
+  tick();
+}
+
+function observeTable(root){
+  if(!root || observed.has(root)) return;
+  observed.add(root);
+  new MutationObserver(() => requestAnimationFrame(scrubAll)).observe(root, { childList: true, subtree: true });
 }
 
 function scrubAll(){
   scrubVisibleRows();
+  scrubJobActions();
   scrubDashboardTotals();
 }
 
@@ -80,8 +88,18 @@ function scrubVisibleRows(){
     const root = $(id);
     if(!root) return;
     root.querySelectorAll("tbody tr, .card").forEach(row => {
-      if(isLaithComputer(row.textContent)) row.remove();
+      if(containsLaithComputer(row.textContent)) row.remove();
     });
+  });
+}
+
+function scrubJobActions(){
+  const root = $("jobsTable");
+  if(!root) return;
+  root.querySelectorAll("tbody tr").forEach(row => {
+    const status = row.querySelector(".status")?.textContent?.trim().toLowerCase() || "";
+    const completed = row.querySelector(".completeOpenJobBtn");
+    if(completed && ["open", "scheduled"].includes(status)) completed.remove();
   });
 }
 
@@ -104,10 +122,16 @@ function isLaithComputerRecord(record){
 }
 
 function isLaithComputer(value){
-  const compact = String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const compact = compactName(value);
   return compact === "laithcomputer" || compact === "userlaithcomputer";
 }
 
+function containsLaithComputer(value){
+  const compact = compactName(value);
+  return compact.includes("laithcomputer") || compact.includes("userlaithcomputer");
+}
+
+function compactName(value){ return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, ""); }
 function money(n){ return "$" + Number(n || 0).toLocaleString(); }
 function dateVal(value){ if(!value) return 0; if(typeof value === "number") return value; if(value.seconds) return value.seconds * 1000; const t = new Date(value).getTime(); return Number.isFinite(t) ? t : 0; }
 function todayStart(){ const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }
