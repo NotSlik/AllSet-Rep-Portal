@@ -1,28 +1,32 @@
-import { getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+const firebaseConfig = {
+  apiKey: "AIzaSyA_CbiovvY9yvdsQ6wzzwoG2QaqBT0r7Bg",
+  authDomain: "allsetrepportal.firebaseapp.com",
+  projectId: "allsetrepportal",
+  storageBucket: "allsetrepportal.firebasestorage.app",
+  messagingSenderId: "590070052736",
+  appId: "1:590070052736:web:193a9edb6fd378fbd27365",
+  measurementId: "G-SY45913J3Z",
+  databaseURL: "https://allsetrepportal-default-rtdb.firebaseio.com"
+};
+
 const LS_NAME = "allset_rep_name";
 const LS_ROLE = "allset_rep_role";
-
-let auth = null;
-let db = null;
+const app = getApps()[0] || initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 let lastRepAuthSignature = "";
 
 bootAuthGate();
 
-function bootAuthGate(){
+async function bootAuthGate(){
   injectCss();
   injectGate();
   wireGate();
-  waitForCrmFirebaseApp();
-}
-
-function waitForCrmFirebaseApp(){
-  const app = getApps()[0];
-  if(!app) return setTimeout(waitForCrmFirebaseApp, 60);
-  auth = getAuth(app);
-  db = getFirestore(app);
+  await setPersistence(auth, browserLocalPersistence).catch(() => {});
   onAuthStateChanged(auth, user => {
     if(user && !user.isAnonymous){
       hideAuthGate();
@@ -78,7 +82,6 @@ async function handleAuth(mode){
   const remember = document.getElementById("firebaseRememberDevice")?.checked !== false;
   const email = normalizeLoginEmail(emailInput?.value || "");
   const password = passwordInput?.value || "";
-  if(!auth){ setStatus("CRM is still loading. Try again in a second."); return; }
   if(!email){ setStatus("Enter a username or email."); emailInput?.focus(); return; }
   if(password.length < 6){ setStatus("Password must be at least 6 characters."); passwordInput?.focus(); return; }
   setStatus(mode === "create" ? "Creating account..." : "Logging in...");
@@ -96,7 +99,7 @@ async function handleAuth(mode){
 }
 
 async function syncRepAuthMarker(){
-  const user = auth?.currentUser;
+  const user = auth.currentUser;
   if(!user || user.isAnonymous || !db) return;
   const name = String(localStorage.getItem(LS_NAME) || "").trim();
   const role = String(localStorage.getItem(LS_ROLE) || "rep").trim() || "rep";
