@@ -27,16 +27,22 @@ bootBoardFinder();
 
 function bootBoardFinder(){
   injectCss();
+  installObserver();
+  enhanceTables();
+  wireHeaderButton();
   signInAnonymously(auth).catch(() => {});
   onAuthStateChanged(auth, user => {
     uid = user?.uid || uid;
     subscribe();
     installObserver();
+    wireHeaderButton();
     enhanceTables();
   });
   document.addEventListener("click", event => {
     const btn = event.target.closest?.(".sourceFindBtn");
     if(btn) openSourceFinder(btn.dataset.name || "");
+    const headerBtn = event.target.closest?.("#boardFindSourcesBtn");
+    if(headerBtn) openBoardSourceSummary();
     const jump = event.target.closest?.(".sourceJumpBtn");
     if(jump) jumpToSource(jump.dataset.page || "", jump.dataset.find || "");
   });
@@ -83,6 +89,13 @@ function enhanceTables(){
   });
 }
 
+function wireHeaderButton(){
+  const headerBtn = $("boardFindSourcesBtn");
+  if(!headerBtn || headerBtn.dataset.sourceFinderReady) return;
+  headerBtn.dataset.sourceFinderReady = "1";
+  headerBtn.classList.add("sourceHeaderBtn");
+}
+
 function openSourceFinder(name){
   const modalBackdrop = $("modalBackdrop");
   const modalCard = $("modalCard");
@@ -90,6 +103,27 @@ function openSourceFinder(name){
   const matches = findSources(name);
   modalBackdrop.classList.remove("hidden");
   modalCard.innerHTML = `<div class="modalTop"><div><h2>Find ${esc(name)}</h2><p class="muted">Every live CRM record where this name still appears.</p></div><button class="ghostBtn" onclick="window.crmCloseModal?.()">Close</button></div>${renderMatches(name, matches)}`;
+}
+
+function openBoardSourceSummary(){
+  const modalBackdrop = $("modalBackdrop");
+  const modalCard = $("modalCard");
+  if(!modalBackdrop || !modalCard) return;
+  const names = boardNames();
+  const matches = names.flatMap(name => findSources(name).map(match => ({ ...match, searchedName: name })));
+  modalBackdrop.classList.remove("hidden");
+  modalCard.innerHTML = `<div class="modalTop"><div><h2>Board Sources</h2><p class="muted">Names currently visible on the Board and where they still exist in CRM data.</p></div><button class="ghostBtn" onclick="window.crmCloseModal?.()">Close</button></div>${renderBoardSummary(names, matches)}`;
+}
+
+function boardNames(){
+  const rows = [...document.querySelectorAll("#boardTable tbody tr")];
+  return [...new Set(rows.map(row => row.querySelector("td strong")?.textContent?.trim()).filter(Boolean))];
+}
+
+function renderBoardSummary(names, matches){
+  if(!names.length) return `<div class="card noMargin">No Board names visible right now.</div>`;
+  if(!matches.length) return `<div class="sourceFinderList">${names.map(name => `<div class="sourceFinderItem"><div><strong>${esc(name)}</strong><span>No source records found yet. If data is still loading, wait a second and click Find Sources again.</span><small>Visible Board row</small></div><button class="ghostBtn smallBtn sourceFindBtn" data-name="${esc(name)}" type="button">Retry</button></div>`).join("")}</div>`;
+  return `<div class="sourceFinderList">${matches.map(match => `<div class="sourceFinderItem"><div><strong>${esc(match.searchedName)} -> ${esc(match.title)}</strong><span>${esc(match.detail)}</span><small>${esc(match.collection)} / ${esc(match.id)} / ${esc(match.field)}</small></div><button class="actionBtn smallBtn sourceJumpBtn" data-page="${esc(match.page)}" data-find="${esc(match.findText)}" type="button">Open</button></div>`).join("")}</div>`;
 }
 
 function renderMatches(name, matches){
@@ -176,6 +210,7 @@ function injectCss(){
   style.id = "sourceFinderCss";
   style.textContent = `
     .sourceFindBtn{margin-left:7px}
+    .sourceHeaderBtn{min-width:118px}
     .sourceFinderList{display:grid;gap:9px;max-height:62vh;overflow:auto}
     .sourceFinderItem{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid var(--border);background:rgba(255,255,255,.06);border-radius:12px;padding:10px}
     .sourceFinderItem strong,.sourceFinderItem span,.sourceFinderItem small{display:block}
