@@ -86,6 +86,11 @@ function captureClicks(event){
     event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
     claimOpenJob(claim.dataset.id); return;
   }
+  const start = target.closest?.(".startOpenJobBtn");
+  if(start){
+    event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
+    startOpenJob(start.dataset.id); return;
+  }
   const complete = target.closest?.(".completeOpenJobBtn");
   if(complete){
     event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
@@ -133,10 +138,11 @@ function renderJobs(){
     const status = jobStatus(job.status);
     const mine = job.cleanerId === uid || sameName(job.cleanerName || job.cleaner, name);
     const claimButton = role === "cleaner" && status === "open" ? `<button class="actionBtn smallBtn claimOpenJobBtn" data-id="${esc(job.id)}">Claim</button>` : "";
-    const completedButton = status !== "completed" && (role !== "cleaner" || mine) ? `<button class="actionBtn smallBtn completeOpenJobBtn" data-id="${esc(job.id)}">Completed</button>` : "";
+    const startButton = status === "claimed" && (role !== "cleaner" || mine) ? `<button class="actionBtn smallBtn startOpenJobBtn" data-id="${esc(job.id)}">Start</button>` : "";
+    const completeButton = status === "in_progress" && (role !== "cleaner" || mine) ? `<button class="actionBtn smallBtn completeOpenJobBtn" data-id="${esc(job.id)}">Complete</button>` : "";
     const editButton = role !== "cleaner" ? `<button class="ghostBtn smallBtn" onclick="window.crmEdit?.('job','${esc(job.id)}')">Edit</button>` : "";
     const customerButton = role !== "cleaner" ? `<button class="ghostBtn smallBtn moveJobCustomerStrictBtn" data-id="${esc(job.id)}">Customer</button>` : "";
-    return `<tr><td><strong>${esc(job.customer || job.title || "Job")}</strong><br><span class="muted">${esc(job.jobId || job.businessJobId || "")}${job.invoiceNumber ? ` / ${esc(job.invoiceNumber)}` : ""}</span></td><td>${esc(job.phone || "-")}</td><td>${esc(readableDate(job.scheduledAt) || "-")}</td><td>${esc(job.cleanerName || job.cleaner || "-")}</td><td>${money(job.price || job.amount || job.quote || 0)}</td><td>${money(repPay(job))}</td><td>${money(cleanerPay(job))}</td><td>${money(totalLaborCost(job))}</td><td>${esc(readableDate(job.cleanedAt || job.completedAt || job.lastCleanedAt) || "-")}</td><td><span class="status ${esc(status)}">${esc(labelStatus(status))}</span></td><td><div class="tableActions">${claimButton}${completedButton}${editButton}${customerButton}</div></td></tr>`;
+    return `<tr><td><strong>${esc(job.customer || job.title || "Job")}</strong><br><span class="muted">${esc(job.jobId || job.businessJobId || "")}${job.invoiceNumber ? ` / ${esc(job.invoiceNumber)}` : ""}</span></td><td>${esc(job.phone || "-")}</td><td>${esc(readableDate(job.scheduledAt) || "-")}</td><td>${esc(job.cleanerName || job.cleaner || "-")}</td><td>${money(job.price || job.amount || job.quote || 0)}</td><td>${money(repPay(job))}</td><td>${money(cleanerPay(job, true))}</td><td>${money(totalLaborCost(job, true))}</td><td>${esc(readableDate(job.cleanedAt || job.completedAt || job.lastCleanedAt) || "-")}</td><td><span class="status ${esc(status)}">${esc(labelStatus(status))}</span></td><td><div class="tableActions">${claimButton}${startButton}${completeButton}${editButton}${customerButton}</div></td></tr>`;
   });
   table.innerHTML = rows.length ? `<table class="dataTable"><thead><tr><th>Job</th><th>Phone</th><th>Scheduled</th><th>Cleaner</th><th>Price</th><th>Rep Pay</th><th>Cleaner Pay</th><th>Total Labor Cost</th><th>Cleaned Date</th><th>Status</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<div class="card">No jobs scheduled yet.</div>`;
 }
@@ -241,13 +247,33 @@ async function claimOpenJob(id){
   toast("Job claimed");
 }
 
+async function startOpenJob(id){
+  const job = jobs[id];
+  if(!job) return toast("Job not found");
+  const status = jobStatus(job.status);
+  const mine = job.cleanerId === uid || sameName(job.cleanerName || job.cleaner, currentName());
+  if(status !== "claimed") return toast("Claim the job before starting");
+  if(currentRole() === "cleaner" && !mine) return toast("This job is claimed by another cleaner");
+  await setDoc(doc(db, "jobs", id), { status: "in_progress", startedAt: Date.now(), updatedAt: Date.now(), updatedBy: currentName() }, { merge: true });
+  toast("Job started");
+}
+
 async function completeOpenJob(id){
   const job = jobs[id];
   if(!job) return toast("Job not found");
+  const status = jobStatus(job.status);
+  const mine = job.cleanerId === uid || sameName(job.cleanerName || job.cleaner, currentName());
+  if(status === "completed") return toast("Job already completed");
+  if(status !== "in_progress") return toast("Start the job before completing");
+  if(currentRole() === "cleaner" && !mine) return toast("This job is claimed by another cleaner");
   const t = Date.now();
   const jobId = job.jobId || job.businessJobId || nextBusinessId("AS", job);
   const invoiceNumber = job.invoiceNumber || nextBusinessId("INV", job);
-  await setDoc(doc(db, "jobs", id), { jobId, businessJobId: jobId, invoiceNumber, status: "completed", cleanerId: job.cleanerId || uid, cleanerName: job.cleanerName || job.cleaner || currentName(), cleaner: job.cleaner || job.cleanerName || currentName(), completedAt: t, cleanedAt: t, lastCleanedAt: t, totalLaborCost: totalLaborCost(job), updatedAt: t, updatedBy: currentName() }, { merge: true });
+  const cleanerId = job.cleanerId || uid;
+  const cleanerName = job.cleanerName || job.cleaner || currentName();
+  const payout = cleanerPay(job, true);
+  await setDoc(doc(db, "jobs", id), { jobId, businessJobId: jobId, invoiceNumber, status: "completed", cleanerId, cleanerName, cleaner: cleanerName, payCleanerAmount: payout, cleanerPay: payout, completedAt: t, cleanedAt: t, lastCleanedAt: t, totalLaborCost: totalLaborCost({ ...job, payCleanerAmount: payout }, true), updatedAt: t, updatedBy: currentName() }, { merge: true });
+  await addCleanerCommission(cleanerId, cleanerName, payout);
   toast("Job completed");
 }
 
@@ -391,8 +417,14 @@ function sameName(a,b){ return normalizeName(a) && normalizeName(a) === normaliz
 function stableKey(name){ const slug = normalizeName(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); return slug ? `user-${slug}` : ""; }
 function num(...values){ for(const value of values){ const n = Number(value); if(Number.isFinite(n) && value !== "") return n; } return 0; }
 function repPay(job){ return num(job.repPay, job.repCommission, job.commissionAmount, job.repCommissionAmount); }
-function cleanerPay(job){ return num(job.payCleanerAmount, job.cleanerPay, job.cleanerAmount, job.payCleaner, job.cleanerPayout); }
-function totalLaborCost(job){ return repPay(job) + cleanerPay(job); }
+async function addCleanerCommission(cleanerId, cleanerName, payout){
+  if(!payout) return;
+  const repId = findRepDocId(cleanerName, cleanerId) || cleanerId;
+  if(!repId || !reps[repId]) return;
+  await setDoc(doc(db, "reps", repId), { commissionOwed: Number(reps[repId].commissionOwed || 0) + payout, updatedAt: Date.now(), updatedBy: currentName() }, { merge: true });
+}
+function cleanerPay(job, fallback = false){ const amount = num(job.payCleanerAmount, job.cleanerPay, job.cleanerAmount, job.payCleaner, job.cleanerPayout); return amount || (fallback ? num(job.price, job.amount, job.quote) : 0); }
+function totalLaborCost(job, fallback = false){ return repPay(job) + cleanerPay(job, fallback); }
 function businessYear(record){ const t = dateVal(record.completedAt || record.cleanedAt || record.jobDate || record.createdAt) || Date.now(); return new Date(t).getFullYear(); }
 function nextBusinessId(prefix, record = {}){ const year = businessYear(record); const source = String(record.id || record.sourceJobId || record.createdAt || Date.now()); return `${prefix}-${year}-${stableNumber(source)}`; }
 function stableNumber(source){ let hash = 0; for(let i = 0; i < source.length; i++) hash = (hash * 31 + source.charCodeAt(i)) >>> 0; return String(hash % 1000000).padStart(6, "0"); }
