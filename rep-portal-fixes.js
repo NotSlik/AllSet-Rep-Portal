@@ -146,10 +146,12 @@ function renderBoardPayFix(){
   if(!table || boardRendering) return;
   boardRendering = true;
   const cleaners = new Map();
-  Object.entries(reps).filter(([, rep]) => rep.role === "cleaner").forEach(([id, rep]) => cleaners.set(id, { id, name: rep.name || "Cleaner", claimed: 0, completed: 0, earned: 0 }));
+  Object.entries(reps).filter(([, rep]) => rep.role === "cleaner" && !shouldHideCleanerName(rep.name || rep.displayName)).forEach(([id, rep]) => cleaners.set(id, { id, name: rep.name || "Cleaner", claimed: 0, completed: 0, earned: 0 }));
   Object.values(jobs).forEach(job => {
-    const id = job.cleanerId || job.cleanerName || job.cleaner || "unassigned";
-    if(!cleaners.has(id)) cleaners.set(id, { id, name: job.cleanerName || job.cleaner || "Unassigned", claimed: 0, completed: 0, earned: 0 });
+    const cleanerName = job.cleanerName || job.cleaner || "";
+    if(shouldHideCleanerName(cleanerName)) return;
+    const id = job.cleanerId || stableKey(cleanerName) || cleanerName;
+    if(!cleaners.has(id)) cleaners.set(id, { id, name: cleanerName, claimed: 0, completed: 0, earned: 0 });
     const row = cleaners.get(id);
     const status = jobStatus(job.status);
     if(job.claimedAt || job.cleanerId || job.cleanerName || job.cleaner || ["claimed", "in_progress", "completed"].includes(status)) row.claimed++;
@@ -296,6 +298,9 @@ function injectFixStyles(){
 function cleanerPay(job){
   return Number(job.payCleanerAmount ?? job.cleanerPay ?? job.cleanerAmount ?? job.payCleaner ?? job.cleanerPayout ?? 0) || 0;
 }
+function normalizeName(name){ return String(name || "").trim().replace(/\s+/g, " ").toLowerCase(); }
+function stableKey(name){ const slug = normalizeName(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); return slug ? `user-${slug}` : ""; }
+function shouldHideCleanerName(name){ const n = normalizeName(name); return !n || n.includes("unassigned") || n.includes("rebira") || n === "laith"; }
 function jobStatus(status){ return String(status || "open").toLowerCase().replace(/\s+/g, "_").replace("-", "_") === "scheduled" ? "open" : String(status || "open").toLowerCase().replace(/\s+/g, "_").replace("-", "_"); }
 function isAdminish(){ return (localStorage.getItem("allset_rep_role") || "rep") === "admin" || sessionStorage.getItem("allset_admin_unlocked") === "1"; }
 function currentName(){ return localStorage.getItem("allset_rep_name") || $("nicknameInput")?.value || "Team"; }

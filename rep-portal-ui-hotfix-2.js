@@ -413,7 +413,7 @@ function currentRole(){ return localStorage.getItem("allset_rep_role") || $("rol
 function isAdminish(){ return currentRole() === "admin" || normalizeName(currentName()) === "laith" || sessionStorage.getItem("allset_admin_unlocked") === "1"; }
 function shouldHideCleanerName(name){
   const n = normalizeName(name);
-  return !n || n === "unassigned" || n === "rebira" || n === "laith" || (isAdminish() && n === normalizeName(currentName()));
+  return !n || n.includes("unassigned") || n.includes("rebira") || n === "laith" || (isAdminish() && n === normalizeName(currentName()));
 }
 function normalizeName(name){ return String(name || "").trim().replace(/\s+/g, " ").toLowerCase(); }
 function sameName(a,b){ return normalizeName(a) && normalizeName(a) === normalizeName(b); }
