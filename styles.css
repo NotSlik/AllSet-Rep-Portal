@@ -76,3 +76,87 @@ max-width:260px !important;
 #clearTerritoriesBtn{
 display:none!important;
 }
+
+/* CRM workflow and polish pass */
+.status.open{
+  background:rgba(56,189,248,.14);
+  border-color:rgba(56,189,248,.38);
+  color:#bae6fd;
+}
+.status.claimed{
+  background:rgba(245,158,11,.16);
+  border-color:rgba(245,158,11,.42);
+  color:#fde68a;
+}
+.status.in_progress{
+  background:rgba(167,139,250,.16);
+  border-color:rgba(167,139,250,.42);
+  color:#ddd6fe;
+}
+.status.completed{
+  background:rgba(34,197,94,.16);
+  border-color:rgba(34,197,94,.42);
+  color:#bbf7d0;
+}
+.tableCard{
+  background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.035));
+  box-shadow:0 18px 55px rgba(0,0,0,.18);
+}
+.dataTable th{
+  position:sticky;
+  top:0;
+  z-index:1;
+  letter-spacing:0;
+}
+.dataTable td{
+  height:62px;
+}
+.dataTable tbody tr{
+  transition:background .16s ease, transform .16s ease;
+}
+.dataTable tbody tr:hover td{
+  background:rgba(56,189,248,.055);
+}
+.tableActions{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.tableActions .actionBtn,
+.tableActions .ghostBtn,
+.tableActions .dangerBtn{
+  min-height:34px;
+}
+.actionBtn,
+.ghostBtn,
+.dangerBtn,
+.chipBtn,
+.navBtn{
+  transition:transform .14s ease, border-color .14s ease, background .14s ease, box-shadow .14s ease;
+}
+.actionBtn:hover,
+.ghostBtn:hover,
+.dangerBtn:hover,
+.chipBtn:hover,
+.navBtn:hover{
+  transform:translateY(-1px);
+}
+.statCard{
+  border-radius:14px;
+}
+.panel,
+.tableCard,
+.card{
+  border-radius:12px;
+}
+.modalCard{
+  border-radius:14px;
+}
+body.light-mode .status.open{color:#075985}
+body.light-mode .status.claimed{color:#92400e}
+body.light-mode .status.in_progress{color:#5b21b6}
+body.light-mode .status.completed{color:#166534}
+body.light-mode .tableCard{
+  background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.68));
+}

@@ -37,7 +37,7 @@ function bootLaithComputerBlock(){
 function subscribe(){
   if(subscribed) return;
   subscribed = true;
-  onSnapshot(collection(db, "reps"), snap => { reps = snapObj(snap); removeLaithComputerRepDocs(); scrubAll(); });
+  onSnapshot(collection(db, "reps"), snap => { reps = snapObj(snap); removeBlockedRepDocs(); scrubAll(); });
   onSnapshot(collection(db, "leads"), snap => { leads = snapObj(snap); scrubDashboardTotals(); });
   onSnapshot(collection(db, "jobs"), snap => { jobs = snapObj(snap); scrubDashboardTotals(); });
 }
@@ -48,12 +48,12 @@ function snapObj(snap){
   return out;
 }
 
-async function removeLaithComputerRepDocs(){
+async function removeBlockedRepDocs(){
   if(cleanupBusy) return;
   cleanupBusy = true;
   try{
     for(const [id, rep] of Object.entries(reps)){
-      if(isLaithComputer(id) || isLaithComputer(rep.id) || isLaithComputer(rep.name) || isLaithComputer(rep.displayName)){
+      if(isBlockedName(id) || isBlockedName(rep.id) || isBlockedName(rep.name) || isBlockedName(rep.displayName)){
         await deleteDoc(doc(db, "reps", id)).catch(() => {});
       }
     }
@@ -88,7 +88,7 @@ function scrubVisibleRows(){
     const root = $(id);
     if(!root) return;
     root.querySelectorAll("tbody tr, .card").forEach(row => {
-      if(containsLaithComputer(row.textContent)) row.remove();
+      if(containsBlockedName(row.textContent)) row.remove();
     });
   });
 }
@@ -106,29 +106,29 @@ function scrubJobActions(){
 function scrubDashboardTotals(){
   const week = weekStart();
   const today = todayStart();
-  const sales = [...Object.values(leads), ...Object.values(jobs)].filter(record => !isLaithComputerRecord(record));
+  const sales = [...Object.values(leads), ...Object.values(jobs)].filter(record => !isBlockedRecord(record));
   const weekRevenue = sales.filter(x => dateVal(x.createdAt || x.scheduledAt) >= week).reduce((sum, x) => sum + Number(x.amount || x.quote || x.price || 0), 0);
   const todayRevenue = sales.filter(x => dateVal(x.createdAt || x.completedAt) >= today).reduce((sum, x) => sum + Number(x.amount || x.quote || x.price || 0), 0);
   if($("statTodayRevenue")) $("statTodayRevenue").textContent = money(todayRevenue);
   if($("statWeekRevenue")) $("statWeekRevenue").textContent = money(weekRevenue);
 }
 
-function isLaithComputerRecord(record){
+function isBlockedRecord(record){
   const fields = [record.id, record._docId, record.repId, record.cleanerId, record.repName, record.rep, record.cleanerName, record.cleaner, record.createdBy, record.updatedBy];
   const rep = reps[record.repId] || {};
   const cleaner = reps[record.cleanerId] || {};
   fields.push(rep.id, rep._docId, rep.name, rep.displayName, cleaner.id, cleaner._docId, cleaner.name, cleaner.displayName);
-  return fields.some(isLaithComputer);
+  return fields.some(isBlockedName);
 }
 
-function isLaithComputer(value){
+function isBlockedName(value){
   const compact = compactName(value);
-  return compact === "laithcomputer" || compact === "userlaithcomputer";
+  return compact === "laithcomputer" || compact === "userlaithcomputer" || compact.includes("rebira") || compact.includes("unassigned");
 }
 
-function containsLaithComputer(value){
+function containsBlockedName(value){
   const compact = compactName(value);
-  return compact.includes("laithcomputer") || compact.includes("userlaithcomputer");
+  return compact.includes("laithcomputer") || compact.includes("userlaithcomputer") || compact.includes("rebira") || compact.includes("unassigned");
 }
 
 function compactName(value){ return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, ""); }

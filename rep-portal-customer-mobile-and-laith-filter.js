@@ -195,8 +195,8 @@ function addBoardCustomer(cleaners, customer){
 }
 
 function validRecord(record){ return ![record.repName, record.rep, record.cleanerName, record.cleaner, record.createdBy, record.updatedBy, reps[record.repId]?.name, reps[record.cleanerId]?.name].some(isBlockedName); }
-function isBlockedName(name){ return normalizeName(name) === "laith computer"; }
-function shouldHideCleanerName(name){ return isBlockedName(name) || normalizeName(name) === "laith" || (isAdminish() && normalizeName(name) === normalizeName(currentName())); }
+function isBlockedName(name){ const n = normalizeName(name); return n === "laith computer" || n.includes("unassigned") || n.includes("rebira"); }
+function shouldHideCleanerName(name){ const n = normalizeName(name); return !n || isBlockedName(name) || n === "laith" || (isAdminish() && n === normalizeName(currentName())); }
 function currentName(){ return String(localStorage.getItem("allset_rep_name") || $("nicknameInput")?.value || "Team").trim(); }
 function currentRole(){ return localStorage.getItem("allset_rep_role") || $("roleSelect")?.value || "rep"; }
 function isAdminish(){ return currentRole() === "admin" || normalizeName(currentName()) === "laith" || sessionStorage.getItem("allset_admin_unlocked") === "1"; }

@@ -12,12 +12,12 @@
   L.Map.__allsetBridge = true;
 })();
 
-import("./rep-portal-fixes.js?v=20260624-crm-workflow-fixes").catch(err => console.warn("AllSet fixes failed to load", err));
+import("./rep-portal-fixes.js?v=20260626-board-cleaner-filter").catch(err => console.warn("AllSet fixes failed to load", err));
 import("./rep-portal-followup-fixes.js?v=20260624-recurring-only").catch(err => console.warn("AllSet follow-up fixes failed to load", err));
 import("./rep-portal-followup-hotfix.js?v=20260624-retired-board-renderer").catch(err => console.warn("AllSet board hotfix failed to load", err));
 import("./rep-portal-identity-fix.js?v=20260624-identity-retired").catch(err => console.warn("AllSet identity fix failed to load", err));
-import("./rep-portal-ui-hotfix-2.js?v=20260625-bookkeeping-csv-fields").catch(err => console.warn("AllSet UI hotfix failed to load", err));
+import("./rep-portal-ui-hotfix-2.js?v=20260626-board-cleaner-filter").catch(err => console.warn("AllSet UI hotfix failed to load", err));
 import("./rep-portal-bookkeeping-guard.js?v=20260625-preserve-bookkeeping-ids").catch(err => console.warn("AllSet bookkeeping guard failed to load", err));
-import("./rep-portal-customer-mobile-and-laith-filter.js?v=20260625-mobile-customers-laith-computer").catch(err => console.warn("AllSet customer mobile/filter fix failed to load", err));
-import("./rep-portal-laith-computer-block.js?v=20260625-scoped-crm-stabilizer").catch(err => console.warn("AllSet Laith computer block failed to load", err));
+import("./rep-portal-customer-mobile-and-laith-filter.js?v=20260626-board-cleaner-filter").catch(err => console.warn("AllSet customer mobile/filter fix failed to load", err));
+import("./rep-portal-laith-computer-block.js?v=20260626-board-name-scrubber").catch(err => console.warn("AllSet Laith computer block failed to load", err));
 import("./rep-portal-jobs-scroll-fix.js?v=20260625-jobs-mobile-scroll").catch(err => console.warn("AllSet jobs scroll fix failed to load", err));
