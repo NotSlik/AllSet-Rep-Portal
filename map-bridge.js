@@ -21,3 +21,4 @@ import("./rep-portal-bookkeeping-guard.js?v=20260625-preserve-bookkeeping-ids").
 import("./rep-portal-customer-mobile-and-laith-filter.js?v=20260626-board-cleaner-filter").catch(err => console.warn("AllSet customer mobile/filter fix failed to load", err));
 import("./rep-portal-laith-computer-block.js?v=20260625-scoped-crm-stabilizer").catch(err => console.warn("AllSet Laith computer block failed to load", err));
 import("./rep-portal-jobs-scroll-fix.js?v=20260625-jobs-mobile-scroll").catch(err => console.warn("AllSet jobs scroll fix failed to load", err));
+import("./rep-portal-board-source-finder.js?v=20260626-board-source-finder").catch(err => console.warn("AllSet board source finder failed to load", err));
