@@ -411,7 +411,10 @@ function findRepDocId(name, id){
 function currentName(){ return String(localStorage.getItem("allset_rep_name") || $("nicknameInput")?.value || "Team").trim(); }
 function currentRole(){ return localStorage.getItem("allset_rep_role") || $("roleSelect")?.value || "rep"; }
 function isAdminish(){ return currentRole() === "admin" || normalizeName(currentName()) === "laith" || sessionStorage.getItem("allset_admin_unlocked") === "1"; }
-function shouldHideCleanerName(name){ return normalizeName(name) === "laith" || (isAdminish() && normalizeName(name) === normalizeName(currentName())); }
+function shouldHideCleanerName(name){
+  const n = normalizeName(name);
+  return !n || n === "unassigned" || n === "rebira" || n === "laith" || (isAdminish() && n === normalizeName(currentName()));
+}
 function normalizeName(name){ return String(name || "").trim().replace(/\s+/g, " ").toLowerCase(); }
 function sameName(a,b){ return normalizeName(a) && normalizeName(a) === normalizeName(b); }
 function stableKey(name){ const slug = normalizeName(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); return slug ? `user-${slug}` : ""; }
